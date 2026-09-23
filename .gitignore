@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+apps/web/build/
+apps/web/.svelte-kit/
+apps/web/android/app/build/
+apps/web/android/.gradle/
+apps/web/android/build/
+
+# Secrets (NEVER commit)
+*.keystore
+keystore.properties
+.env
+.env.*
+apps/web/android/local.properties
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Temp
+.tmp/
+.mcp.json

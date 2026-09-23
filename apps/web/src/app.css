@@ -1,0 +1,110 @@
+:root {
+  --সবুজ: #4CAF50;
+  --সবুজ-হালকা: #DCEDC8;
+  --ধূসর-হালকা: #F5F5F5;
+  --ধূসর-গাঢ়: #666666;
+  --কালো: #212121;
+  --বিভাজক: #F8F8F8;
+  --লাল: #C62828;
+  --সাদা: #FFFFFF;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Noto Sans Bengali', 'Hind Siliguri', sans-serif;
+  background: var(--ধূসর-হালকা);
+  color: var(--কালো);
+  font-size: 16px;
+}
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 16px;
+}
+.bn-btn {
+  background: var(--সবুজ);
+  color: var(--সাদা);
+  width: 100%;
+  font-weight: bold;
+  margin-top: 16px;
+}
+.bn-btn:active { opacity: 0.8; }
+.bn-btn:disabled { opacity: 0.4; cursor: default; }
+.bn-btn-হালকা {
+  background: var(--সাদা);
+  color: var(--কালো);
+  border: 1px solid #CCCCCC;
+  width: 100%;
+  margin-top: 8px;
+}
+input, select, textarea {
+  font-family: inherit;
+  font-size: 16px;
+  width: 100%;
+  padding: 12px;
+  margin: 6px 0;
+  border: none;
+  border-bottom: 1px solid #CCCCCC;
+  background: var(--সাদা);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-bottom: 2px solid var(--সবুজ);
+}
+.bn-লেবেল { font-weight: bold; margin-top: 16px; display: block; }
+.bn-হিন্ট { color: var(--ধূসর-গাঢ়); font-size: 13px; }
+.bn-ত্রুটি { color: var(--লাল); font-size: 14px; }
+.bn-নো-ফটো {
+  background: #EEEEEE;
+  color: var(--ধূসর-গাঢ়);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.card {
+  background: var(--সাদা);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.bn-শিরোনাম-বার {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--সাদা);
+  border-bottom: 1px solid #EEEEEE;
+  font-weight: bold;
+}
+.bn-বটম-নেভ {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--সাদা);
+  border-top: 1px solid #EEEEEE;
+  z-index: 10;
+}
+.bn-বটম-নেভ a {
+  flex: 1;
+  text-align: center;
+  padding: 10px 0;
+  text-decoration: none;
+  color: var(--ধূসর-গাঢ়);
+  font-size: 13px;
+}
+.bn-বটম-নেভ a.সক্রিয় { color: var(--সবুজ); font-weight: bold; }
+.bn-ব্যান্ড-বিভাজক { height: 4px; background: var(--বিভাজক); margin: 4px 0; }
+.bn-ব্যান্ড-শিরোনাম {
+  font-size: 13px;
+  color: var(--ধূসর-গাঢ়);
+  padding: 4px 12px;
+  background: var(--বিভাজক);
+}

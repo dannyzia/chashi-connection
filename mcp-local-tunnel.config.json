@@ -1,0 +1,14 @@
+{
+  "mode": "agent",
+  "relay": "my-mcp-relay.onrender.com",
+  "servers": {
+    "filesystem": {
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "D://My Projects//Future Projects//Chashi Connection"
+      ]
+    }
+  }
+}

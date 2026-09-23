@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS cached_products (
+  id TEXT PRIMARY KEY,
+  data TEXT
+);
+CREATE TABLE IF NOT EXISTS chat_cache (
+  id TEXT PRIMARY KEY,
+  data TEXT
+);
+CREATE TABLE IF NOT EXISTS sync_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action TEXT,
+  payload TEXT
+);
+CREATE TABLE IF NOT EXISTS kv (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);

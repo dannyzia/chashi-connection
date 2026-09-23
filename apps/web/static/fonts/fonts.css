@@ -1,0 +1,8 @@
+/* বাংলা ফন্ট — WOFF2 subset (APK < 6MB) — PRD §13 */
+@font-face {
+  font-family: 'Noto Sans Bengali';
+  src: url('/fonts/NotoSansBengali.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

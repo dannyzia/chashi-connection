@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">চাষী কানেকশন</string>
+    <string name="title_activity_main">চাষী কানেকশন</string>
+    <string name="package_name">com.chashi.connection</string>
+    <string name="custom_url_scheme">com.chashi.connection</string>
+</resources>
