@@ -23,7 +23,10 @@ function brightLineScan() {
   const files = scanDir(srcDir);
   let violation = false;
   for (const f of files) {
-    const content = readFileSync(f, 'utf8');
+    // PostgREST-এর `.order(...)` = সারি সাজানো, commerce-এর "order" নয় (CHC-T-022,
+    // orchestrator-approved)। স্ক্যানের আগে কেবল এই ডাক-রূপটি বাদ যায়; `orders`
+    // টেবিল/বিক্রয়-প্রবাহ ধরার ক্ষমতা অপরিবর্তিত থাকে (\border\b তো "orders"-ই ধরত না)।
+    const content = readFileSync(f, 'utf8').replace(/\.order\s*\(/g, '');
     for (const w of brightWords) {
       const regex = new RegExp('\\b' + w + '\\b', 'i');
       if (regex.test(content)) {
