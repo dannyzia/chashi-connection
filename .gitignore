@@ -25,3 +25,4 @@ Thumbs.db
 # Temp
 .tmp/
 .mcp.json
+apps/web/.venv-font/
