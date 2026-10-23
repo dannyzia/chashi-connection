@@ -8,8 +8,13 @@
     প্রত্যাখ্যান করত ("invalid sfntVersion"), তাই বাংলা লেখা সবসময়
     সিস্টেম ফন্টে ফলব্যাক করত। এখন সাবসেট তৈরি করে fontTools, অর্থাৎ আসল WOFF2।
 
+কেন এই স্ক্রিপ্ট এখন static/-এর বাইরে:
+    SvelteKit static/ ফোল্ডারের সব কিছু হুবহু web build-এ কপি করে। তাই
+    scripts/-এ থাকলে এই পাইথন ফাইল আর ব্যবহারকারীর কাছে যায় না (৫,৪১০ বাইট
+    সাশ্রয়)। রেন্ডার হওয়া ফন্ট আর fonts.css অবশ্যই static/fonts/-এ থাকে।
+
 ভার্চুয়াল এনভায়রনমেন্ট (venv) — এটি কখনো APK বা web bundle-এ যায় না:
-    পথ          : apps/web/.venv-font/
+    পথ          : apps/web/.venv-font/   (এই স্ক্রিপ্ট থেকে এক ধাপ উপরে)
     পিন করা      : fonttools==4.67.0, brotli==1.2.1
     চালু করা     : apps/web/.venv-font/Scripts/Activate.ps1      (PowerShell)
                    source apps/web/.venv-font/Scripts/activate     (Git Bash)
@@ -19,9 +24,9 @@
     python -m venv apps/web/.venv-font
     apps/web/.venv-font/Scripts/python.exe -m pip install fonttools==4.67.0 brotli==1.2.1
 
-ব্যবহার:
-    python subset_woff2.py <source.ttf> [output.woff2]
-    output না দিলে এই ফোল্ডারের NotoSansBengali.woff2-এ লেখা হয়।
+ব্যবহার (apps/web থেকে):
+    python scripts/subset-font.py <source.ttf> [output.woff2]
+    output না দিলে static/fonts/NotoSansBengali.woff2-এ লেখা হয়।
 
 সতর্কতা:
     --layout-features=* এবং U+200C-200D কখনো বাদ দেওয়া চলবে না।
@@ -36,8 +41,8 @@ import subprocess
 import sys
 
 এখানে = os.path.dirname(os.path.abspath(__file__))
-# স্ক্রিপ্ট থাকে apps/web/static/fonts/ — venv থাকে apps/web/.venv-font/
-ভেনেভ = os.path.abspath(os.path.join(এখানে, "..", "..", ".venv-font"))
+# স্ক্রিপ্ট থাকে apps/web/scripts/ — venv থাকে apps/web/.venv-font/
+ভেনেভ = os.path.abspath(os.path.join(এখানে, "..", ".venv-font"))
 ভেনেভ_পাইথন = os.path.join(ভেনেভ, "Scripts", "python.exe")
 
 ফন্টটুলস_পিন = "4.67.0"
@@ -49,13 +54,16 @@ import sys
     "U+2013,U+2014,U+2018-201D,U+2026"
 )
 লেআউট_ফিচার = "*"
-ডিফল্ট_আউটপুট = os.path.join(এখানে, "NotoSansBengali.woff2")
+# রেন্ডার হওয়া ফন্ট served asset — static/fonts/-এ থাকতেই হবে।
+ডিফল্ট_আউটপুট = os.path.abspath(
+    os.path.join(এখানে, "..", "static", "fonts", "NotoSansBengali.woff2")
+)
 WOFF2_ম্যাজিক = b"wOF2"
 
 
 def মূল(argv: list[str]) -> int:
     if len(argv) < 2:
-        print("usage: python subset_woff2.py <source.ttf> [output.woff2]")
+        print("usage: python scripts/subset-font.py <source.ttf> [output.woff2]")
         return 2
 
     উৎস = argv[1]
