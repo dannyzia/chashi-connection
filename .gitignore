@@ -16,6 +16,7 @@ keystore.properties
 .env
 .env.*
 apps/web/android/local.properties
+kilo.json
 
 # OS / editor
 .DS_Store
