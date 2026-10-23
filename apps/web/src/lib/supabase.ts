@@ -15,7 +15,7 @@ export type পোস্টপ্রকার = 'sale' | 'wanted';
 export type বার্তাধরণ = 'text' | 'image' | 'location';
 export type রিপোর্টলক্ষ্য = 'product' | 'user' | 'message';
 
-export interface ব্যবহারকারীসারি {
+export type ব্যবহারকারীসারি = {
   id: string;
   phone: string;
   name: string;
@@ -32,9 +32,9 @@ export interface ব্যবহারকারীসারি {
   women_safety: boolean;
   verified: boolean;
   created_at: string;
-}
+};
 
-export interface পণ্যসারি {
+export type পণ্যসারি = {
   id: string;
   seller_id: string;
   type: পোস্টপ্রকার;
@@ -56,27 +56,27 @@ export interface পণ্যসারি {
   hidden: boolean;
   created_at: string;
   expires_at: string;
-}
+};
 
-export interface চ্যাটসারি {
+export type চ্যাটসারি = {
   id: string;
   listing_id: string;
   buyer_id: string;
   seller_id: string;
   created_at: string;
   ended_at: string | null;
-}
+};
 
-export interface বার্তাসারি {
+export type বার্তাসারি = {
   id: string;
   chat_id: string;
   sender_id: string;
   body: string;
   kind: বার্তাধরণ;
   created_at: string;
-}
+};
 
-export interface রিপোর্টসারি {
+export type রিপোর্টসারি = {
   id: string;
   reporter_id: string;
   target_type: রিপোর্টলক্ষ্য;
@@ -84,14 +84,14 @@ export interface রিপোর্টসারি {
   category: string;
   details: string | null;
   created_at: string;
-}
+};
 
-export interface ব্লকসারি {
+export type ব্লকসারি = {
   id: string;
   blocker_id: string;
   blocked_id: string;
   created_at: string;
-}
+};
 
 // সার্ভার-জেনারেটেড কলামগুলো ইনসার্টে ঐচ্ছিক।
 type ঐচ্ছিক<সারি, চাবি extends keyof সারি> = Omit<সারি, চাবি> & Partial<Pick<সারি, চাবি>>;
@@ -103,38 +103,44 @@ export type বার্তাঢোকানো = ঐচ্ছিক<বার�
 export type রিপোর্টঢোকানো = ঐচ্ছিক<রিপোর্টসারি, 'id' | 'created_at'>;
 export type ব্লকঢোকানো = ঐচ্ছিক<ব্লকসারি, 'id' | 'created_at'>;
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       users: {
         Row: ব্যবহারকারীসারি;
         Insert: ব্যবহারকারীঢোকানো;
         Update: Partial<ব্যবহারকারীসারি>;
+        Relationships: [];
       };
       products: {
         Row: পণ্যসারি;
         Insert: পণ্যঢোকানো;
         Update: Partial<পণ্যসারি>;
+        Relationships: [];
       };
       chats: {
         Row: চ্যাটসারি;
         Insert: চ্যাটঢোকানো;
         Update: Partial<চ্যাটসারি>;
+        Relationships: [];
       };
       messages: {
         Row: বার্তাসারি;
         Insert: বার্তাঢোকানো;
         Update: Partial<বার্তাসারি>;
+        Relationships: [];
       };
       reports: {
         Row: রিপোর্টসারি;
         Insert: রিপোর্টঢোকানো;
         Update: Partial<রিপোর্টসারি>;
+        Relationships: [];
       };
       blocks: {
         Row: ব্লকসারি;
         Insert: ব্লকঢোকানো;
         Update: Partial<ব্লকসারি>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
@@ -142,7 +148,7 @@ export interface Database {
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
-}
+};
 
 export type Supabase = SupabaseClient<Database>;
 
