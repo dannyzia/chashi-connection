@@ -27,6 +27,13 @@ const CORS_হেডার: Record<string, string> = {
 const নম্বর_নিয়ম = /^\+8801[3-9]\d{8}$/;
 const ওটিপি_নিয়ম = /^\d{4,8}$/;
 
+// ── খরচের সীমা (spend caps), সূত্র CHC-D-028 / CHC-R-017 ──
+// এগুলো ব্যবহারকারীর অভিজ্ঞতার সীমা নয় — বিল নিয়ন্ত্রণের সীমা। প্রতিটি গৃহীত
+// send একটি টাকা-খরচা dP ক্রেডিট, আর anon কী অ্যাপের সঙ্গেই যায়।
+const প্রতি_নম্বর_সীমা = 5;
+const প্রতি_আইপি_সীমা = 20;
+const আইপি_সর্বোচ্চ_দৈর্ঘ্য = 64;
+
 type dpফল = { status: number; data: Record<string, unknown> };
 
 function উত্তর(status: number, body: Record<string, unknown>): Response {
@@ -63,6 +70,62 @@ async function dpডাক(পথ: string, পেলোড: Record<string, unkno
   } catch {
     return { status: 0, data: {} };
   }
+}
+
+/** UTC দিন — কাউন্টারের দিন-ভিত্তি (টেবিলের default-এর সঙ্গে হুবহু মিল)। */
+function আজকেরদিন(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** ক্লায়েন্ট IP: x-forwarded-for-এর প্রথম hop, নইলে x-real-ip, নইলে 'unknown'। */
+function ক্লায়েন্টআইপি(req: Request): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  const প্রথম = forwarded ? forwarded.split(',')[0].trim() : '';
+  const বাস্তব = (req.headers.get('x-real-ip') ?? '').trim();
+  const আইপি = প্রথম || বাস্তব;
+  return আইপি ? আইপি.slice(0, আইপি_সর্বোচ্চ_দৈর্ঘ্য) : 'unknown';
+}
+
+/**
+ * এক কাউন্টার পারমাণবিকভাবে বাড়িয়ে নতুন মান ফেরত দেয় (মাইগ্রেশন 00004-এর
+ * otp_send_গণনা RPC)। কাউন্টার না পাওয়া গেলে null — অর্থাৎ যাচাই করা যায়নি।
+ * service-role কী দিয়ে ডাকা হয়; এই RPC-তেই কেবল DB লেখা হয়, SQL স্ট্রিং নেই।
+ */
+async function গণনাবাড়ান(kind: 'phone' | 'ip', key: string): Promise<number | null> {
+  const url = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !serviceKey) return null;
+  try {
+    const অ্যাডমিন = createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    const { data, error } = await অ্যাডমিন.rpc('otp_send_গণনা', {
+      p_kind: kind,
+      p_key: key,
+      p_day: আজকেরদিন()
+    });
+    if (error) return null;
+    return typeof data === 'number' ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * send-এর খরচ-সীমা। দুই কাউন্টারই আগে বাড়ানো হয়, তারপর সীমা যাচাই — বাধাপ্রাপ্ত
+ * চেষ্টাও গণনায় থাকে, যাতে ব্রুট-ফোর্স বিনামূল্যে পুনরায় চেষ্টা না পায়।
+ *
+ * fail-open: DB ব্যর্থ হলে (মাইগ্রেশন-আগে, নেটওয়ার্ক-গোলযোগ) যাচাই বাদ দিয়ে
+ * পাঠ এগোয়। কারণ কাউন্টারটি নিরাপত্তা-সীমা নয়, খরচ-সীমা — dP-র নিজের
+ * per-number cooldown পিছনেই থাকে, আর সীমার কারণে সাইনআপ পুরো বন্ধ হয়ে যাওয়া
+ * গ্রামীণ ব্যবহারকারীর জন্য খারাপতর ক্ষতি।
+ */
+async function পাঠসীমা_যাচাই(req: Request, phone: string): Promise<boolean> {
+  const ফোনগণনা = await গণনাবাড়ান('phone', phone);
+  const আইপিগণনা = await গণনাবাড়ান('ip', ক্লায়েন্টআইপি(req));
+  if (ফোনগণনা !== null && ফোনগণনা > প্রতি_নম্বর_সীমা) return false;
+  if (আইপিগণনা !== null && আইপিগণনা > প্রতি_আইপি_সীমা) return false;
+  return true;
 }
 
 /** dP-র ব্যর্থতা → ক্লায়েন্টের পরিষ্কার কোড (429/402/423 সহ)। */
@@ -151,6 +214,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!নম্বর_নিয়ম.test(phone)) return উত্তর(400, { ok: false, error: 'invalid-phone' });
 
   if (action === 'send') {
+    // dP ডাকার আগেই খরচ-সীমা: এই মুহূর্তের পরের প্রতিটি ডাক টাকা খরচ করে।
+    // 429-এর আকৃতি dP-র মতোই — ক্লায়েন্টের বিদ্যমান cooldown হ্যান্ডলিং অপরিবর্তিত।
+    if (!(await পাঠসীমা_যাচাই(req, phone))) {
+      return উত্তর(429, { ok: false, error: 'rate_limited' });
+    }
     const ফল = await dpডাক('/v5/otp/send', { phone });
     if (ফল.status !== 0 && ফল.status < 300 && ফল.data.ok !== false) {
       // sessionId ইচ্ছাকৃতভাবে বাদ — শুধু মেয়াদ।
