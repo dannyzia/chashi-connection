@@ -4,6 +4,7 @@
 import type { ফিডআইটেম } from './logic/feed';
 
 export interface ব্যবহারকারী {
+  id?: string; // Supabase auth uid — সেশন থাকলে (R3)
   নাম: string;
   মোবাইল: string;
   লেবেল: string;

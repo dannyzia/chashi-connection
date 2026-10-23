@@ -1,9 +1,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { app, লগইনকরুন } from '$lib/app-state.svelte';
+  import { app, লগইনকরুন, সারিতেযোগ } from '$lib/app-state.svelte';
   import { bn } from '$lib/bn';
   import { বিভাগসমূহ, জেলাতালিকা as জেলাসমূহ, উপজেলাতালিকা as উপজেলাতালিকাসমূহ, ইউনিয়নতালিকা as ইউনিয়নতালিকাসমূহ, জেলাস্থানাঙ্ক } from '$lib/data/locations';
   import { লেবেলতালিকা } from '$lib/data/labels';
+  import { hasAuthClient, sendOtp, verifyOtp, প্রোফাইলসংরক্ষণ, getSessionUserId } from '$lib/auth';
+  import type { ব্যবহারকারীঢোকানো } from '$lib/supabase';
 
   let ধাপ = $state(1); // 1: মোবাইল, 2: ওটিপি, 3: নাম, 4: লেবেল, 5: ঠিকানা
   let মোবাইল = $state('');
@@ -18,16 +20,35 @@
   let গ্রাম = $state('');
   let ঠিকানাবিস্তারিত = $state('');
   let ত্রুটি = $state('');
+  let চলছে = $state(false); // নেটওয়ার্ক-অপেক্ষা: ডাবল ট্যাপ ঠেকায়
+  let সেশনআইডি = $state<string | null>(null); // যাচাই সফল হলে auth uid
 
   const মোবাইলভ্যালিড = () => /^01[3-9]\d{8}$/.test(মোবাইল);
 
-  function পরবর্তী() {
+  async function পরবর্তী() {
+    if (চলছে) return;
     ত্রুটি = '';
     if (ধাপ === 1) {
       if (!মোবাইলভ্যালিড()) { ত্রুটি = bn.ত্রুটি_খালিনম্বর; return; }
+      // ক্লায়েন্ট নেই (env ছাড়া বিল্ড / CI / অফলাইন) → আগের মতোই ডেমো পথ।
+      if (!hasAuthClient()) { ধাপ = 2; return; }
+      চলছে = true;
+      const ফল = await sendOtp(মোবাইল);
+      চলছে = false;
+      if (!ফল.ok) { ত্রুটি = bn.ত্রুটি_ওটিপিপাঠানো; return; }
       ধাপ = 2;
     } else if (ধাপ === 2) {
-      if (ওটিপি.length !== 4) { ত্রুটি = bn.ত্রুটি_ওটিপি; return; }
+      if (!hasAuthClient()) {
+        // ডেমো যাচাই — ৪–৬ সংখ্যা, যেকোনোটি (আগে কেবল ৪ ছিল)
+        if (!/^\d{4,6}$/.test(ওটিপি)) { ত্রুটি = bn.ত্রুটি_ওটিপি; return; }
+        ধাপ = 3;
+        return;
+      }
+      চলছে = true;
+      const ফল = await verifyOtp(মোবাইল, ওটিপি);
+      চলছে = false;
+      if (!ফল.ok) { ত্রুটি = bn.ত্রুটি_ওটিপি; return; }
+      সেশনআইডি = ফল.user?.id ?? null;
       ধাপ = 3;
     } else if (ধাপ === 3) {
       if (!নাম.trim()) { ত্রুটি = bn.ত্রুটি_খালিনাম; return; }
@@ -39,7 +60,10 @@
       const কার্যকরইউনিয়ন = ইউনিয়ন === 'অন্যান্য' ? ইউনিয়নঅন্যান্য.trim() : ইউনিয়ন;
       if (!বিভাগ || !জেলা || !উপজেলা || !কার্যকরইউনিয়ন || !গ্রাম) { ত্রুটি = bn.ত্রুটি_ঠিকানা; return; }
       const স্থানাঙ্ক = জেলাস্থানাঙ্ক(বিভাগ, জেলা);
+      // সেশন থাকলে তার uid-ই সারির id — RLS users_যোগ (id = auth.uid()) এটাই চায়।
+      const আইডি = সেশনআইডি ?? (hasAuthClient() ? await getSessionUserId() : null);
       const ব্যবহারকারী = {
+        id: আইডি ?? undefined,
         নাম,
         মোবাইল,
         লেবেল,
@@ -55,6 +79,31 @@
         হোয়াটসঅ্যাপ: null,
         ব্লকতালিকা: []
       };
+      if (আইডি) {
+        // সার্ভারের সারি: স্থানীয় নামগুলো কলামের নামে (ইউনিয়ন → union_name)।
+        const সারি: ব্যবহারকারীঢোকানো & { id: string } = {
+          id: আইডি,
+          phone: মোবাইল,
+          name: নাম,
+          label: লেবেল,
+          division: বিভাগ,
+          district: জেলা,
+          upazila: উপজেলা,
+          union_name: কার্যকরইউনিয়ন,
+          village: গ্রাম,
+          lat: স্থানাঙ্ক.lat,
+          lng: স্থানাঙ্ক.lng,
+          detail: ঠিকানাবিস্তারিত.trim() || null,
+          whatsapp: null,
+          women_safety: false,
+          verified: false
+        };
+        // সাইনআপ নেটওয়ার্কের জন্য দাঁড়ায় না (PRD §১৬.১): অনুরোধ পটভূমিতে যায়;
+        // সার্ভারে না পৌঁছালে অফলাইন সারি পরে পাঠাবে।
+        void প্রোফাইলসংরক্ষণ(সারি).then((ফল) => {
+          if (!ফল.ok && ফল.পথ === 'সারি') সারিতেযোগ('প্রোফাইল', সারি);
+        });
+      }
       লগইনকরুন(ব্যবহারকারী);
       goto('/');
     }
@@ -76,12 +125,12 @@
     <label class="bn-লেবেল">{bn.মোবাইলশিরোনাম}</label>
     <input type="tel" placeholder={bn.মোবাইলপ্লেসহোল্ডার} bind:value={মোবাইল} />
     {#if ত্রুটি}<p class="bn-ত্রুটি">{ত্রুটি}</p>{/if}
-    <button class="bn-btn" onclick={পরবর্তী}>{bn.ওটিপিপাঠান}</button>
+    <button class="bn-btn" onclick={পরবর্তী} disabled={চলছে}>{bn.ওটিপিপাঠান}</button>
   {:else if ধাপ === 2}
     <label class="bn-লেবেল">{bn.ওটিপিশিরোনাম}</label>
-    <input type="text" inputmode="numeric" maxlength="4" placeholder={bn.ওটিপিপ্লেসহোল্ডার} bind:value={ওটিপি} style="letter-spacing: 8px; text-align: center; font-size: 20px;" />
+    <input type="text" inputmode="numeric" maxlength="6" placeholder={bn.ওটিপিপ্লেসহোল্ডার} bind:value={ওটিপি} style="letter-spacing: 8px; text-align: center; font-size: 20px;" />
     {#if ত্রুটি}<p class="bn-ত্রুটি">{ত্রুটি}</p>{/if}
-    <button class="bn-btn" onclick={পরবর্তী}>{bn.আগেযান}</button>
+    <button class="bn-btn" onclick={পরবর্তী} disabled={চলছে}>{bn.আগেযান}</button>
   {:else if ধাপ === 3}
     <label class="bn-লেবেল">{bn.নামশিরোনাম}</label>
     <input type="text" placeholder={bn.নামপ্লেসহোল্ডার} bind:value={নাম} />
