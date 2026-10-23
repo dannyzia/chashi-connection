@@ -164,6 +164,30 @@ export async function getSessionUserId(): Promise<string | null> {
   }
 }
 
+/**
+ * সেশন শেষ — লগআউটে ডাকা হয় (CHC-T-018)। কখনো throw করে না।
+ *
+ * আগে global (সব ডিভাইস) চেষ্টা; ব্যর্থ হলে local — auth-js 2.118-এ local
+ * scope নেটওয়ার্ক ব্যর্থ হলেও স্টোরেজ থেকে সেশন মুছে দেয়, তাই অফলাইনে
+ * লগআউট করলেও ব্রাউজারে সেশন টিকে থাকে না। env নেই → false (ডেমো পথ)।
+ */
+export async function signOutSession(): Promise<boolean> {
+  const সার্ভার = getSupabase();
+  if (!সার্ভার) return false;
+  try {
+    const { error } = await সার্ভার.auth.signOut();
+    if (!error) return true;
+  } catch {
+    // নেটওয়ার্ক/লক ব্যর্থতা — নিচের local ফলব্যাক
+  }
+  try {
+    const { error } = await সার্ভার.auth.signOut({ scope: 'local' });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /** সারিতে ব্যবহারকারী-সারি লেখার ফল। 'সারি' মানে সার্ভারে পৌঁছায়নি → অফলাইন কিউ। */
 export interface প্রোফাইলফল {
   ok: boolean;
