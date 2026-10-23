@@ -6,17 +6,32 @@
 //   • env না থাকলে (CI, অন্য মেশিন, অফলাইন) getSupabase() null, তাই প্রতিটি
 //     ফাংশন 'no-client' ফেরত দেয়। কল করার দায়িত্ব স্ক্রিনের: ক্লায়েন্ট না
 //     থাকলে সে ডেমো পথে যায়, অ্যাপ কখনো আটকে যায় না।
-//   • অ্যাপে নম্বর 01XXXXXXXXX আকারে থাকে; Supabase চায় E.164 (+880…)।
+//   • অ্যাপে নম্বর 01XXXXXXXXX আকারে থাকে; সার্ভারে E.164 (+880…)।
+//   • OTP পাঠানো ও যাচাই হয় dP Relay-এর মাধ্যমে Edge Function auth-otp-এ
+//     (সিদ্ধান্ত CHC-D-023)। সেশন আসে ফাংশন থেকেই — ক্লায়েন্ট কেবল
+//     setSession করে। dP Relay-এর কোনো সিক্রেট এখানে নেই।
 import { getSupabase, type ব্যবহারকারীঢোকানো } from './supabase';
 
 /** ওটিপি পাঠানো/যাচাইয়ের ফল — কোনো ব্যতিক্রম নয়, শুধু ফল। */
 export interface ওটিপিফলাফল {
   ok: boolean;
-  error?: 'no-client' | 'invalid-phone' | 'send-failed' | 'verify-failed';
+  error?:
+    | 'no-client'
+    | 'invalid-phone'
+    | 'send-failed'
+    | 'verify-failed'
+    | 'expired' // কোডের মেয়াদ শেষ (dP: otp_expired)
+    | 'locked' // অনেকবার ভুল — কিছুক্ষণ অপেক্ষা (dP: otp_locked)
+    | 'cooldown'; // খুব দ্রুত আবার পাঠানোর চেষ্টা (dP: resend_cooldown)
   user?: { id: string };
+  /** পাঠানোর সফল উত্তরে dP-র সেশন মেয়াদ (unix seconds) — কুলডাউনের জন্য। */
+  expiresAt?: number;
+  /** locked/cooldown-এ কত সেকেন্ড অপেক্ষা করতে হবে (dP: retryAfterSec)। */
+  retryAfterSec?: number;
 }
 
 const বাংলাদেশিমোবাইল = /^01[3-9]\d{8}$/;
+const ফাংশন_পথ = '/functions/v1/auth-otp';
 
 /**
  * 01XXXXXXXXX → +880XXXXXXXXX। ভুল নম্বর হলে null।
@@ -36,39 +51,105 @@ export function hasAuthClient(): boolean {
   return getSupabase() !== null;
 }
 
-/** OTP পাঠানোর অনুরোধ। সার্ভার গ্রহণ করলে ok:true (এখনো যাচাই হয়নি)। */
-export async function sendOtp(phone: string): Promise<ওটিপিফলাফল> {
-  const সার্ভার = getSupabase();
-  if (!সার্ভার) return { ok: false, error: 'no-client' };
-  const নম্বর = toE164(phone);
-  if (!নম্বর) return { ok: false, error: 'invalid-phone' };
+/**
+ * ফাংশন ডাকার জন্য URL ও anon key। supabase.ts ক্লায়েন্টের ভেতরে ওগুলো
+ * protected, তাই একই env vars এখানে সরাসরি পড়া হয় (দুটি লাইন, একই নাম)।
+ */
+function পরিবেশ(): { url: string; key: string } | null {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!url || !key) return null;
+  return { url: url.replace(/\/+$/, ''), key };
+}
+
+/** auth-otp ফাংশনের একক ডাক। নেটওয়ার্ক বিফল হলে null (অফলাইন)। */
+async function ফাংশনডাক(পেলোড: Record<string, unknown>): Promise<{ status: number; data: Record<string, unknown> } | null> {
+  const env = পরিবেশ();
+  if (!env) return null;
   try {
-    const { error } = await সার্ভার.auth.signInWithOtp({ phone: নম্বর });
-    if (error) return { ok: false, error: 'send-failed' };
-    return { ok: true };
+    const res = await fetch(env.url + ফাংশন_পথ, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: env.key,
+        Authorization: 'Bearer ' + env.key
+      },
+      body: JSON.stringify(পেলোড)
+    });
+    let data: Record<string, unknown> = {};
+    try {
+      const পার্স = await res.json();
+      if (পার্স && typeof পার্স === 'object') data = পার্স as Record<string, unknown>;
+    } catch {
+      // অ-জেসন উত্তর — কোডই যথেষ্ট
+    }
+    return { status: res.status, data };
   } catch {
-    // নেটওয়ার্ক বিচ্ছিন্নতা — অ্যাপ ভাঙে না, স্ক্রিনই সিদ্ধান্ত নেয়।
-    return { ok: false, error: 'send-failed' };
+    return null;
   }
 }
 
-/** OTP যাচাই। সফল হলে সেশন তৈরি হয় এবং user.id ফেরত আসে। */
+function সংখ্যা(মান: unknown): number | undefined {
+  return typeof মান === 'number' && Number.isFinite(মান) ? মান : undefined;
+}
+
+/**
+ * OTP পাঠানোর অনুরোধ — dP Relay সংবাদ পাঠাবে।
+ * সার্ভার গ্রহণ করলে ok:true এবং expiresAt (কুলডাউনের জন্য)।
+ */
+export async function sendOtp(phone: string): Promise<ওটিপিফলাফল> {
+  if (!getSupabase()) return { ok: false, error: 'no-client' };
+  const নম্বর = toE164(phone);
+  if (!নম্বর) return { ok: false, error: 'invalid-phone' };
+
+  const ফল = await ফাংশনডাক({ action: 'send', phone: নম্বর });
+  if (!ফল) return { ok: false, error: 'send-failed' }; // নেটওয়ার্ক বিচ্ছিন্ন
+
+  if (ফল.data.ok === true) return { ok: true, expiresAt: সংখ্যা(ফল.data.expiresAt) };
+
+  if (ফল.status === 429) {
+    return { ok: false, error: 'cooldown', retryAfterSec: সংখ্যা(ফল.data.retryAfterSec) };
+  }
+  if (ফল.data.error === 'invalid-phone') return { ok: false, error: 'invalid-phone' };
+  return { ok: false, error: 'send-failed' };
+}
+
+/**
+ * OTP যাচাই — ফাংশন dP Relay-এ যাচাই করে এবং সফল হলে Supabase সেশন দেয়।
+ * এখানে কেবল setSession; তারপর user.id = auth.uid() (RLS-এর ভিত্তি)।
+ */
 export async function verifyOtp(phone: string, token: string): Promise<ওটিপিফলাফল> {
   const সার্ভার = getSupabase();
   if (!সার্ভার) return { ok: false, error: 'no-client' };
   const নম্বর = toE164(phone);
   if (!নম্বর) return { ok: false, error: 'invalid-phone' };
   const কোড = (token || '').trim();
-  // Supabase-এর ডিফল্ট ৬ সংখ্যা; ৪–৮ সহনশীল, যাতে টেস্ট-প্রজেক্টের
-  // কনফিগারেশন বদলালেও UI না ভাঙে।
   if (!/^\d{4,8}$/.test(কোড)) return { ok: false, error: 'verify-failed' };
-  try {
-    const { data, error } = await সার্ভার.auth.verifyOtp({ phone: নম্বর, token: কোড, type: 'sms' });
-    if (error || !data.user) return { ok: false, error: 'verify-failed' };
-    return { ok: true, user: { id: data.user.id } };
-  } catch {
-    return { ok: false, error: 'verify-failed' };
+
+  const ফল = await ফাংশনডাক({ action: 'verify', phone: নম্বর, otp: কোড });
+  if (!ফল) return { ok: false, error: 'verify-failed' };
+
+  if (ফল.data.ok === true) {
+    const সেশন = ফল.data.session as { access_token?: string; refresh_token?: string } | undefined;
+    const uid = (ফল.data.user as { id?: string } | undefined)?.id;
+    if (!সেশন?.access_token || !সেশন.refresh_token || !uid) return { ok: false, error: 'verify-failed' };
+    try {
+      const { error } = await সার্ভার.auth.setSession({
+        access_token: সেশন.access_token,
+        refresh_token: সেশন.refresh_token
+      });
+      if (error) return { ok: false, error: 'verify-failed' };
+    } catch {
+      return { ok: false, error: 'verify-failed' };
+    }
+    return { ok: true, user: { id: uid } };
   }
+
+  if (ফল.status === 423) {
+    return { ok: false, error: 'locked', retryAfterSec: সংখ্যা(ফল.data.retryAfterSec) };
+  }
+  if (ফল.data.error === 'otp_expired') return { ok: false, error: 'expired' };
+  return { ok: false, error: 'verify-failed' };
 }
 
 /** চলমান সেশনের uid, না থাকলে null। কখনো throw করে না। */
