@@ -4,7 +4,7 @@
   import { bn } from '$lib/bn';
   import { বিভাগসমূহ, জেলাতালিকা as জেলাসমূহ, উপজেলাতালিকা as উপজেলাতালিকাসমূহ, ইউনিয়নতালিকা as ইউনিয়নতালিকাসমূহ, জেলাস্থানাঙ্ক } from '$lib/data/locations';
   import { লেবেলতালিকা } from '$lib/data/labels';
-  import { hasAuthClient, sendOtp, verifyOtp, প্রোফাইলসংরক্ষণ, getSessionUserId } from '$lib/auth';
+  import { hasAuthClient, sendOtp, verifyOtp, প্রোফাইলসংরক্ষণ, getSessionUserId, type ওটিপিফলাফল } from '$lib/auth';
   import type { ব্যবহারকারীঢোকানো } from '$lib/supabase';
 
   let ধাপ = $state(1); // 1: মোবাইল, 2: ওটিপি, 3: নাম, 4: লেবেল, 5: ঠিকানা
@@ -22,8 +22,35 @@
   let ত্রুটি = $state('');
   let চলছে = $state(false); // নেটওয়ার্ক-অপেক্ষা: ডাবল ট্যাপ ঠেকায়
   let সেশনআইডি = $state<string | null>(null); // যাচাই সফল হলে auth uid
+  // আবার ওটিপি পাঠানোর কুলডাউন (dP Relay expiresAt) — ms টাইমস্ট্যাম্প।
+  let কুলডাউনশেষ = $state(0);
+  let ঘড়ি = $state(Date.now());
+
+  $effect(() => {
+    if (!কুলডাউনশেষ) return;
+    const টাইমার = setInterval(() => { ঘড়ি = Date.now(); }, 1000);
+    return () => clearInterval(টাইমার);
+  });
+
+  const বাকিসেকেন্ড = $derived(কুলডাউনশেষ ? Math.max(0, Math.ceil((কুলডাউনশেষ - ঘড়ি) / 1000)) : 0);
 
   const মোবাইলভ্যালিড = () => /^01[3-9]\d{8}$/.test(মোবাইল);
+
+  // dP Relay-এর কোডগুলো → বাংলা বার্তা (স্ক্রিনে ইংরেজি কোড কখনো যায় না)
+  function ত্রুটিবার্তা(ফল: ওটিপিফলাফল): string {
+    if (ফল.error === 'locked') return bn.ত্রুটি_ওটিপিলক(Math.max(1, Math.ceil((ফল.retryAfterSec ?? 60) / 60)));
+    if (ফল.error === 'expired') return bn.ত্রুটি_ওটিপিমেয়াদ;
+    if (ফল.error === 'cooldown') return bn.ত্রুটি_অনেকঅনুরোধ;
+    if (ফল.error === 'invalid-phone') return bn.ত্রুটি_খালিনম্বর;
+    return ধাপ === 2 ? bn.ত্রুটি_ওটিপি : bn.ত্রুটি_ওটিপিপাঠানো;
+  }
+
+  function কুলডাউনশুরু(ফল: ওটিপিফলাফল) {
+    // সার্ভারের মেয়াদ থাকলে সেটাই; নাহলে নিরাপদ ৬০ সেকেন্ড।
+    const মেয়াদ = (ফল.expiresAt ?? 0) * 1000;
+    কুলডাউনশেষ = মেয়াদ > Date.now() ? মেয়াদ : Date.now() + 60_000;
+    ঘড়ি = Date.now();
+  }
 
   async function পরবর্তী() {
     if (চলছে) return;
@@ -35,7 +62,8 @@
       চলছে = true;
       const ফল = await sendOtp(মোবাইল);
       চলছে = false;
-      if (!ফল.ok) { ত্রুটি = bn.ত্রুটি_ওটিপিপাঠানো; return; }
+      if (!ফল.ok) { ত্রুটি = ত্রুটিবার্তা(ফল); return; }
+      কুলডাউনশুরু(ফল);
       ধাপ = 2;
     } else if (ধাপ === 2) {
       if (!hasAuthClient()) {
@@ -47,7 +75,7 @@
       চলছে = true;
       const ফল = await verifyOtp(মোবাইল, ওটিপি);
       চলছে = false;
-      if (!ফল.ok) { ত্রুটি = bn.ত্রুটি_ওটিপি; return; }
+      if (!ফল.ok) { ত্রুটি = ত্রুটিবার্তা(ফল); return; }
       সেশনআইডি = ফল.user?.id ?? null;
       ধাপ = 3;
     } else if (ধাপ === 3) {
@@ -108,6 +136,18 @@
       goto('/');
     }
   }
+
+  // কুলডাউন শেষ হলে আবার পাঠানোর অনুরোধ
+  async function আবারপাঠান() {
+    if (চলছে || বাকিসেকেন্ড > 0) return;
+    ত্রুটি = '';
+    চলছে = true;
+    const ফল = await sendOtp(মোবাইল);
+    চলছে = false;
+    if (!ফল.ok) { ত্রুটি = ত্রুটিবার্তা(ফল); return; }
+    ওটিপি = '';
+    কুলডাউনশুরু(ফল);
+  }
 </script>
 
 <div style="max-width: 480px; margin: 0 auto; padding: 16px;">
@@ -128,9 +168,15 @@
     <button class="bn-btn" onclick={পরবর্তী} disabled={চলছে}>{bn.ওটিপিপাঠান}</button>
   {:else if ধাপ === 2}
     <label class="bn-লেবেল">{bn.ওটিপিশিরোনাম}</label>
-    <input type="text" inputmode="numeric" maxlength="6" placeholder={bn.ওটিপিপ্লেসহোল্ডার} bind:value={ওটিপি} style="letter-spacing: 8px; text-align: center; font-size: 20px;" />
+    <input type="text" inputmode="numeric" maxlength="8" placeholder={bn.ওটিপিপ্লেসহোল্ডার} bind:value={ওটিপি} style="letter-spacing: 8px; text-align: center; font-size: 20px;" />
     {#if ত্রুটি}<p class="bn-ত্রুটি">{ত্রুটি}</p>{/if}
     <button class="bn-btn" onclick={পরবর্তী} disabled={চলছে}>{bn.আগেযান}</button>
+    {#if hasAuthClient()}
+      <!-- পাঠানোর পরে কুলডাউন শেষ না হলে আবার পাঠানো নিষ্ক্রিয় (dP resend_cooldown) -->
+      <button class="bn-btn" onclick={আবারপাঠান} disabled={চলছে || বাকিসেকেন্ড > 0} style="margin-top: 8px;">
+        {বাকিসেকেন্ড > 0 ? bn.ওটিপিকুলডাউন(বাকিসেকেন্ড) : bn.ওটিপিআবার}
+      </button>
+    {/if}
   {:else if ধাপ === 3}
     <label class="bn-লেবেল">{bn.নামশিরোনাম}</label>
     <input type="text" placeholder={bn.নামপ্লেসহোল্ডার} bind:value={নাম} />
