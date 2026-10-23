@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { app, লগইনকরুন } from '$lib/app-state.svelte';
   import { bn } from '$lib/bn';
-  import { স্থানগাছ } from '$lib/data/locations';
+  import { বিভাগসমূহ, জেলাতালিকা as জেলাসমূহ, উপজেলাতালিকা as উপজেলাতালিকাসমূহ, ইউনিয়নতালিকা as ইউনিয়নতালিকাসমূহ, জেলাস্থানাঙ্ক } from '$lib/data/locations';
   import { লেবেলতালিকা } from '$lib/data/labels';
 
   let ধাপ = $state(1); // 1: মোবাইল, 2: ওটিপি, 3: নাম, 4: লেবেল, 5: ঠিকানা
@@ -14,6 +14,7 @@
   let জেলা = $state('');
   let উপজেলা = $state('');
   let ইউনিয়ন = $state('');
+  let ইউনিয়নঅন্যান্য = $state('');
   let গ্রাম = $state('');
   let ঠিকানাবিস্তারিত = $state('');
   let ত্রুটি = $state('');
@@ -35,20 +36,21 @@
       if (!লেবেল) { ত্রুটি = 'একটি লেবেল বেছে নিন'; return; }
       ধাপ = 5;
     } else if (ধাপ === 5) {
-      if (!বিভাগ || !জেলা || !উপজেলা || !ইউনিয়ন || !গ্রাম) { ত্রুটি = bn.ত্রুটি_ঠিকানা; return; }
-      const গ্রামতথ্য = ইউনিয়নসমূহ(ইউনিয়ন)?.গ্রামসমূহ?.find(g => g.নাম === গ্রাম);
+      const কার্যকরইউনিয়ন = ইউনিয়ন === 'অন্যান্য' ? ইউনিয়নঅন্যান্য.trim() : ইউনিয়ন;
+      if (!বিভাগ || !জেলা || !উপজেলা || !কার্যকরইউনিয়ন || !গ্রাম) { ত্রুটি = bn.ত্রুটি_ঠিকানা; return; }
+      const স্থানাঙ্ক = জেলাস্থানাঙ্ক(বিভাগ, জেলা);
       const ব্যবহারকারী = {
         নাম,
         মোবাইল,
         লেবেল,
-        গ্রাম,
-        ইউনিয়ন,
+        গ্রাম, // গ্রাম/পাড়া ব্যবহারকারী নিজে লিখবে (PRD §৬)
+        ইউনিয়ন: কার্যকরইউনিয়ন,
         উপজেলা,
         জেলা,
         বিভাগনাম: বিভাগ,
         ঠিকানাবিস্তারিত,
-        lat: গ্রামতথ্য?.lat ?? 24.63,
-        lng: গ্রামতথ্য?.lng ?? 89.42,
+        lat: স্থানাঙ্ক.lat,
+        lng: স্থানাঙ্ক.lng,
         যাচাইকৃত: false,
         হোয়াটসঅ্যাপ: null,
         ব্লকতালিকা: []
@@ -57,36 +59,6 @@
       goto('/');
     }
   }
-
-  function ইউনিয়নসমূহ(ইউনিয়নেরনাম: string) {
-    for (const বিভাগ of স্থানগাছ) {
-      if (বিভাগ.নাম === বিভাগ) {
-        for (const জেলা of বিভাগ.জেলাসমূহ) {
-          if (জেলা.নাম === জেলা) {
-            for (const উপজেলা of জেলা.উপজেলাসমূহ) {
-              if (উপজেলা.নাম === উপজেলা) {
-                return উপজেলা.ইউনিয়নসমূহ.find(u => u.নাম === ইউনিয়নেরনাম);
-              }
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  const জেলাতালিকা = $derived(
-    বিভাগ ? স্থানগাছ.find(d => d.নাম === বিভাগ)?.জেলাসমূহ.map(j => j.নাম) ?? [] : []
-  );
-  const উপজেলাতালিকা = $derived(
-    (বিভাগ && জেলা) ? স্থানগাছ.find(d => d.নাম === বিভাগ)?.জেলাসমূহ.find(j => j.নাম === জেলা)?.উপজেলাসমূহ.map(u => u.নাম) ?? [] : []
-  );
-  const ইউনিয়নতালিকা = $derived(
-    (বিভাগ && জেলা && উপজেলা) ? স্থানগাছ.find(d => d.নাম === বিভাগ)?.জেলাসমূহ.find(j => j.নাম === জেলা)?.উপজেলাসমূহ.find(u => u.নাম === উপজেলা)?.ইউনিয়নসমূহ.map(u => u.নাম) ?? [] : []
-  );
-  const গ্রামতালিকা = $derived(
-    (বিভাগ && জেলা && উপজেলা && ইউনিয়ন) ? স্থানগাছ.find(d => d.নাম === বিভাগ)?.জেলাসমূহ.find(j => j.নাম === জেলা)?.উপজেলাসমূহ.find(u => u.নাম === উপজেলা)?.ইউনিয়নসমূহ.find(u => u.নাম === ইউনিয়ন)?.গ্রামসমূহ.map(g => g.নাম) ?? [] : []
-  );
 </script>
 
 <div style="max-width: 480px; margin: 0 auto; padding: 16px;">
@@ -128,36 +100,36 @@
     <button class="bn-btn" onclick={পরবর্তী}>{bn.আগেযান}</button>
   {:else if ধাপ === 5}
     <label class="bn-লেবেল">{bn.ঠিকানাশিরোনাম}</label>
-    <select bind:value={বিভাগ} onchange={() => { জেলা = ''; উপজেলা = ''; ইউনিয়ন = ''; গ্রাম = ''; }}>
+    <select bind:value={বিভাগ} onchange={() => { জেলা = ''; উপজেলা = ''; ইউনিয়ন = ''; ইউনিয়নঅন্যান্য = ''; গ্রাম = ''; }}>
       <option value="">{bn.বিভাগ}</option>
-      {#each স্থানগাছ as d}
-        <option value={d.নাম}>{d.নাম}</option>
+      {#each বিভাগসমূহ as বি}
+        <option value={বি.নাম}>{বি.নাম}</option>
       {/each}
     </select>
-    <select bind:value={জেলা} disabled={!বিভাগ} onchange={() => { উপজেলা = ''; ইউনিয়ন = ''; গ্রাম = ''; }}>
+    <select bind:value={জেলা} disabled={!বিভাগ} onchange={() => { উপজেলা = ''; ইউনিয়ন = ''; ইউনিয়নঅন্যান্য = ''; গ্রাম = ''; }}>
       <option value="">{bn.জেলা}</option>
-      {#each জেলাতালিকা as j}
-        <option value={j}>{j}</option>
+      {#each জেলাসমূহ(বিভাগ) as জে}
+        <option value={জে}>{জে}</option>
       {/each}
     </select>
-    <select bind:value={উপজেলা} disabled={!জেলা} onchange={() => { ইউনিয়ন = ''; গ্রাম = ''; }}>
+    <select bind:value={উপজেলা} disabled={!জেলা} onchange={() => { ইউনিয়ন = ''; ইউনিয়নঅন্যান্য = ''; গ্রাম = ''; }}>
       <option value="">{bn.উপজেলা}</option>
-      {#each উপজেলাতালিকা as u}
-        <option value={u}>{u}</option>
+      {#each উপজেলাতালিকাসমূহ(বিভাগ, জেলা) as উ}
+        <option value={উ}>{উ}</option>
       {/each}
     </select>
-    <select bind:value={ইউনিয়ন} disabled={!উপজেলা} onchange={() => { গ্রাম = ''; }}>
+    <!-- PRD §৬.৭: ইউনিয়ন ড্রপডাউন (locations-unions.ts বান্ডিল) + 'অন্যান্য' হলে ফ্রি টেক্সট; গ্রাম ব্যবহারকারী লিখবে -->
+    <select bind:value={ইউনিয়ন} disabled={!উপজেলা}>
       <option value="">{bn.ইউনিয়ন}</option>
-      {#each ইউনিয়নতালিকা as u}
-        <option value={u}>{u}</option>
+      {#each ইউনিয়নতালিকাসমূহ(বিভাগ, জেলা, উপজেলা) as ইউ}
+        <option value={ইউ}>{ইউ}</option>
       {/each}
+      <option value="অন্যান্য">অন্যান্য (লিখুন)</option>
     </select>
-    <select bind:value={গ্রাম} disabled={!ইউনিয়ন}>
-      <option value="">{bn.গ্রাম}</option>
-      {#each গ্রামতালিকা as g}
-        <option value={g}>{g}</option>
-      {/each}
-    </select>
+    {#if ইউনিয়ন === 'অন্যান্য'}
+      <input type="text" placeholder={bn.ইউনিয়ন + ' (লিখুন)'} bind:value={ইউনিয়নঅন্যান্য} />
+    {/if}
+    <input type="text" placeholder={bn.গ্রাম + ' / পাড়া (লিখুন)'} bind:value={গ্রাম} />
     <input type="text" placeholder={bn.ঠিকানাপ্লেসহোল্ডার} bind:value={ঠিকানাবিস্তারিত} />
     {#if ত্রুটি}<p class="bn-ত্রুটি">{ত্রুটি}</p>{/if}
     <button class="bn-btn" onclick={পরবর্তী}>{bn.স্বাগতম}</button>
