@@ -1,7 +1,15 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { app, বার্তাপাঠান } from '$lib/app-state.svelte';
+  import { সার্ভারচ্যাটযোগ } from '$lib/server-chats';
   import { bn } from '$lib/bn';
+
+  // CHC-T-024 — সরাসরি থ্রেড-লিংকে এসেও সার্ভারের বার্তা মিলতে হয়, তাই এখানেও
+  // হাইড্রেশন (একই app.চ্যাটসমূহ — রেন্ডার পথ অপরিবর্তিত)।
+  onMount(() => {
+    void সার্ভারচ্যাটযোগ();
+  });
 
   const id = $derived(page.params.id as string);
   const থ্রেড = $derived(app.চ্যাটসমূহ[id]);

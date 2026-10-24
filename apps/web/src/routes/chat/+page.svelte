@@ -1,6 +1,14 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { app } from '$lib/app-state.svelte';
+  import { সার্ভারচ্যাটযোগ } from '$lib/server-chats';
   import { bn } from '$lib/bn';
+
+  // CHC-T-024 — সার্ভারের থ্রেড পরে যোগ হয়; তালিকা আগেই লোকাল ডেটা দিয়ে দেখা যায়
+  // (পিআরডি §১৬.১)। ব্যর্থ/সেশনহীন হলে কিছুই বদলায় না, কোনো স্পিনার নেই।
+  onMount(() => {
+    void সার্ভারচ্যাটযোগ();
+  });
 </script>
 
 <div style="max-width: 480px; margin: 0 auto; padding: 16px;">
