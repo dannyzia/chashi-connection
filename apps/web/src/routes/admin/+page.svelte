@@ -104,6 +104,7 @@
             <p style="font-size: 12px; color: #666; margin: 4px 0 0;">
               {bn.লক্ষ্য}: {লক্ষ্যনাম[র.target_type] ?? র.target_type}
             </p>
+            <p style="font-size: 11px; color: #999; margin: 2px 0 0; word-break: break-all;">{র.target_id}</p>
             {#if র.details}
               <p style="font-size: 13px; margin: 4px 0 0;">{র.details}</p>
             {/if}
