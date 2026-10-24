@@ -1,8 +1,8 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { app, চ্যাটখুলুন, সার্ভারেচ্যাটখুলুন, সারিতেযোগ } from '$lib/app-state.svelte';
-  import { রিপোর্টজমা } from '$lib/moderation';
+  import { app, চ্যাটখুলুন, সার্ভারেচ্যাটখুলুন, সারিতেযোগ, ব্যবহারকারীব্লক, সংরক্ষণ } from '$lib/app-state.svelte';
+  import { রিপোর্টজমা, বিক্রেতাইডআনুন } from '$lib/moderation';
   import { bn } from '$lib/bn';
   import { দূরত্ব } from '$lib/logic/feed';
   import { রিপোর্টশ্রেণী } from '$lib/logic/safety';
@@ -15,6 +15,9 @@
 
   let রিপোর্টমোড = $state(false);
   let রিপোর্টকারণ = $state('');
+  let ব্লকমোড = $state(false);
+  let ব্লকচলছে = $state(false);
+  let ব্লকসম্পন্ন = $state(false);
 
   // CHC-T-025 — রিপোর্ট লোকাল পথেই আগে: মোডাল বন্ধ ও বাংলা নিশ্চিতকরণ আজকের
   // মতোই (নেটওয়ার্কের জন্য কোনো অপেক্ষা নেই), তারপর ব্যাকগ্রাউন্ডে সার্ভারে।
@@ -33,6 +36,56 @@
     alert(bn.রিপোর্টধন্যবাদ);
     রিপোর্টমোড = false;
     রিপোর্টকারণ = '';
+  }
+
+  // CHC-T-031 — ব্লক (পিআরডি §১২.২: নীরব, একমুখী, ব্লককৃতকে কিছুই জানানো হয় না)।
+  // রিপোর্টের মতোই লোকাল আগে: ফিডের ব্লক-ফিল্টার (routes/+page.svelte) কেবল
+  // লোকাল ব্লকতালিকা পড়ে, তাই এই ডিভাইসে কাজটি সঙ্গে সঙ্গে হয় — অফলাইনে,
+  // বিনা নেটওয়ার্কে, বিনা অপেক্ষায়। সার্ভার-রেকর্ড (blocks) পরে, নীরবে।
+  //
+  // কোন 'চাবি' বসে (ফিল্টার যেটিই মেলে):
+  //   • সত্যিকারের বিক্রেতানাম থাকলে নাম — ওই বিক্রেতার সব পোস্ট ফিড থেকে যায়;
+  //   • সার্ভার থেকে আসা পণ্যে নাম সবার জন্য একই প্লেসহেল্ডার (bn.বিক্রেতা),
+  //     তাই সেখানে পোস্টের নিজের আইডি। ফলে সীমা: সার্ভার-পণ্যের বিক্রেতার
+  //     অন্য পোস্টগুলো এখনো দৃশ্যমান থাকে, কারণ ফিডআইটেম এখনো বিক্রেতার
+  //     পরিচয় বহন করে না (logic/feed.ts ও server-feed.ts — এই কাজের বাইরে)।
+  //
+  // পরিসর (R5): ফিল্টার কেবল ফিডে — ব্লক করা বিক্রেতার এই লিস্টিং-পাতা
+  // খোলা থাকলে সেটি এখানেই আগের মতো দেখায় (বিস্তৃতির পাতা ফিল্টার করে না)।
+  async function ব্লককরুন() {
+    const চলমান = পোস্ট;
+    const ব্যবহারকারী = app.ব্যবহারকারী;
+    if (!চলমান || !ব্যবহারকারী || ব্লকচলছে) return;
+
+    // R4 — আগেই ব্লক করা: কিছুই যোগ হয় না (তালিকা অপরিবর্তিত, দ্বিতীয় নক নয়)।
+    if (ব্যবহারকারী.ব্লকতালিকা.includes(চলমান.id)) {
+      ব্লকমোড = false;
+      ব্লকসম্পন্ন = true;
+      return;
+    }
+    ব্লকচলছে = true;
+
+    // ১) লোকাল তালিকা — ফিল্টার যেসব চাবি মেলাতে পারে, কেবল সেগুলোই।
+    const সাধারণ = bn.বিক্রেতা;
+    if (
+      চলমান.বিক্রেতানাম &&
+      চলমান.বিক্রেতানাম !== সাধারণ &&
+      চলমান.বিক্রেতানাম !== ব্যবহারকারী.নাম &&
+      !ব্যবহারকারী.ব্লকতালিকা.includes(চলমান.বিক্রেতানাম)
+    ) {
+      ব্যবহারকারী.ব্লকতালিকা.push(চলমান.বিক্রেতানাম);
+    }
+    if (!ব্যবহারকারী.ব্লকতালিকা.includes(চলমান.id)) ব্যবহারকারী.ব্লকতালিকা.push(চলমান.id);
+    সংরক্ষণ();
+
+    // ২) সার্ভার-রেকর্ড — বিক্রেতার uuid থাকলে ব্যবহারকারীব্লক (দ্বৈত-গার্ড,
+    //    সেশন-গেটেড); সেশন/নেট না থাকলে সারিতে, ব্যবহারকারী টেরও পান না।
+    const বিক্রেতা = await বিক্রেতাইডআনুন(চলমান.id);
+    if (বিক্রেতা) ব্যবহারকারীব্লক(বিক্রেতা);
+
+    ব্লকচলছে = false;
+    ব্লকমোড = false;
+    ব্লকসম্পন্ন = true;
   }
 
   // CHC-T-026 — চ্যাটখুলুন: লোকাল থ্রেড আগে ও ঠিকানা বদল আগেই (আজকের আচরণ,
@@ -85,6 +138,12 @@
       <div style="font-size: 12px; color: #999;">{bn.প্রায়(দূরত্বকিমি)}</div>
     </div>
 
+    {#if ব্লকসম্পন্ন}
+      <div style="margin-top: 12px; padding: 12px; background: #E8F5E9; border: 1px solid #A5D6A7; border-radius: 8px; font-size: 14px; color: #2E7D32;">
+        {bn.ব্লকসম্পন্নবার্তা}
+      </div>
+    {/if}
+
     {#if পোস্ট.বর্ণনা}
       <div style="margin-top: 12px; padding: 12px; background: #fff; border: 1px solid #eee; border-radius: 8px;">
         <p>{পোস্ট.বর্ণনা}</p>
@@ -97,6 +156,7 @@
       <button class="bn-btn-হালকা" onclick={() => alert('ফোন নম্বর: ০১৭XXXXXXXXX')} style="flex: 1;">{bn.ফোনকরুন}</button>
       <button class="bn-btn-হালকা" onclick={() => alert('শেয়ার করা হয়েছে')} style="flex: 1;">{bn.শেয়ারকরুন}</button>
       <button class="bn-btn-হালকা" onclick={() => রিপোর্টমোড = true} style="flex: 1;">{bn.রিপোর্টকরুন}</button>
+      <button class="bn-btn-হালকা" onclick={() => (ব্লকমোড = true)} style="flex: 1;" disabled={ব্লকসম্পন্ন}>{bn.ব্লক}</button>
     </div>
   </div>
 
@@ -112,6 +172,19 @@
         <div style="display: flex; gap: 8px; margin-top: 16px;">
           <button class="bn-btn" onclick={রিপোর্টপাঠান}>{bn.রিপোর্টপাঠান}</button>
           <button class="bn-btn-হালকা" onclick={() => { রিপোর্টমোড = false; রিপোর্টকারণ = ''; }}>বাতিল</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if ব্লকমোড}
+    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100;">
+      <div style="background: #fff; padding: 24px; border-radius: 12px; max-width: 400px; width: 90%;">
+        <h3>{bn.ব্লকনিশ্চিত}</h3>
+        <p style="font-size: 14px; color: #666;">{bn.ব্লকবর্ণনা}</p>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+          <button class="bn-btn" onclick={ব্লককরুন} disabled={ব্লকচলছে}>{bn.ব্লক}</button>
+          <button class="bn-btn-হালকা" onclick={() => (ব্লকমোড = false)}>বাতিল</button>
         </div>
       </div>
     </div>
