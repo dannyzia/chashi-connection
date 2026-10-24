@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { app, পোস্টযোগ, সারিতেযোগ } from '$lib/app-state.svelte';
+  import { app, পোস্টযোগ, পোস্টসংরক্ষণ } from '$lib/app-state.svelte';
   import { bn } from '$lib/bn';
   import { বিভাগতালিকা } from '$lib/data/labels';
   import { এককতালিকা, ডিফল্টএকক } from '$lib/data/units';
@@ -86,7 +86,12 @@
       পোস্টপ্রকার: প্রকার
     };
     পোস্টযোগ(আইটেম);
-    সারিতেযোগ('পোস্ট', আইটেম);
+    // CHC-T-023 — সেশন থাকলে সার্ভারে যায়, নাহলে (বা ব্যর্থতায়) সারিতে;
+    // UI অপেক্ষা করে না — অফলাইন-প্রথম অপরিবর্তিত।
+    void পোস্টসংরক্ষণ(আইটেম, {
+      বর্ণনা: বর্ণনা.trim() || undefined,
+      দরকষাকষি: প্রকার === 'বিক্রয়' ? দরকষাকষি : false
+    });
     goto('/');
   }
 </script>
