@@ -11,7 +11,7 @@
 // products_অ্যাডমিন_সম্পাদনা — তিনটিই role='admin' হলে সারি খোলে। তাই এই
 // ফাংশনগুলো অ-অ্যাডমিনের জন্য ডাকলে ফাঁকা ফল দেয়, ত্রুটি নয়: RLS নিজেই
 // সারি লুকিয়ে রাখে, ক্লায়েন্টে কোনো ক্ষমতা নেই।
-import { getSupabase } from './supabase';
+import { getSupabase, type Supabase, type পণ্যসারি } from './supabase';
 import { hasAuthClient, getSessionUserId } from './auth';
 
 export type প্রশাসকভূমিকা = 'user' | 'admin';
@@ -113,6 +113,46 @@ export async function fetchProductsAdmin(): Promise<প্রশাসকপণ�
   }
 }
 
+// ── অপারেটর-কর্মের লগ (০০০৬) ──
+// supabase.ts (এই কাজের স্কোপের বাইরে) এখনো admin_audit টেবিলটি জানে না, তাই
+// এখানে কেবল ইনসার্টের হালকা কাঠামো-প্রকার ঘোষণা করা হলো — নতুন ডিপেন্ডেন্সি
+// নয়, নতুন স্কিমা নয়; শুধু টাইপ।
+type কর্মলগসারি = {
+  actor: string;
+  action: 'hide' | 'unhide';
+  target_type: 'product';
+  target_id: string;
+};
+type কর্মলগক্লায়েন্ট = {
+  from: (তালিকা: 'admin_audit') => {
+    insert: (সারি: কর্মলগসারি) => PromiseLike<{ error: unknown }>;
+  };
+};
+
+/**
+ * লগ লেখা — fire-and-forget (পিআরডি §১২.৪: প্রতিটি অ্যাডমিন কাজ লগ হয়)।
+ * ব্যর্থ হলে নীরব: লগের ব্যর্থতা অপারেটরের লুকানো/প্রকাশ আটকায় না। ০০০৬-এর
+ * নীতি কেবল নিজের নামে ও প্রকৃত অ্যাডমিনকে লগ লিখতে দেয় — তাই এখানে actor
+ * সবসময় সেশন-uid, ক্লায়েন্টের দাবি কখনো নয়।
+ */
+async function কর্মলগলেখা(
+  সার্ভার: Supabase,
+  uid: string,
+  action: 'hide' | 'unhide',
+  productId: string
+): Promise<void> {
+  try {
+    await (সার্ভার as unknown as কর্মলগক্লায়েন্ট).from('admin_audit').insert({
+      actor: uid,
+      action,
+      target_type: 'product',
+      target_id: productId
+    });
+  } catch {
+    // ইচ্ছাকৃত নীরবতা — লগ সারি না গেলেও অপারেটর-কাজ সফল।
+  }
+}
+
 /**
  * লুকানো/দেখানো (পিআরডি §১২.৪)। কাজ করে কেবল ০০০০৫-এর
  * products_অ্যাডমিন_সম্পাদনা নীতির আওতায় (role='admin') — নাহলে RLS শূন্য
@@ -121,18 +161,34 @@ export async function fetchProductsAdmin(): Promise<প্রশাসকপণ�
  * `hidden: false` মানে পুনরায় প্রকাশ, `true` মানে লুকানো। অ-অ্যাডমিনের
  * অনুরোধে ০ সারি প্রভাবিত হয় — একে ত্রুটি ধরা হয় যাতে UI মিথ্যা সাফল্য
  * না দেখায়।
+ *
+ * প্রকাশের সময় auto_hidden_at-ও মোছা হয় (০০০৬): অপারেটরের "প্রকাশ করুন"
+ * মানে পণ্যটি আর স্বয়ংক্রিয়ভাবে লুকানো নয়। লুকানোর সময় ওই কলাম অপরিবর্তিত
+ * থাকে — মালিকের নিজের hidden আর রিপোর্ট-সীমার চিহ্ন আলাদা থাকে।
+ * সফল হলে একই অনুরোধে লগ সারি লেখা হয় (অপেক্ষা করা হয় না)।
  */
 export async function setHidden(productId: string, hidden: boolean): Promise<boolean> {
   const সার্ভার = getSupabase();
   if (!সার্ভার) return false;
   try {
+    const uid = await getSessionUserId();
+    if (!uid) return false;
+    // supabase.ts-এর পণ্যসারি প্রতিচ্ছবিতে এখনো ০০০৬-এর auto_hidden_at নেই
+    // (সেই ফাইল এই কাজের স্কোপের বাইরে)। তাই কাস্ট: সার্ভার কলামটি লেখে ঠিকই
+    // (০০০৫-এর products_অ্যাডমিন_সম্পাদনা নীতি পুরো সারির UPDATE দেয়), কেবল
+    // ক্লায়েন্ট-টাইপ এখনো জানে না।
+    const পরিবর্তন = (hidden
+      ? { hidden: true }
+      : { hidden: false, auto_hidden_at: null }) as Partial<পণ্যসারি>;
     const { data, error } = await সার্ভার
       .from('products')
-      .update({ hidden })
+      .update(পরিবর্তন)
       .eq('id', productId)
       .select('id');
     if (error) return false;
-    return Array.isArray(data) && data.length > 0;
+    const সফল = Array.isArray(data) && data.length > 0;
+    if (সফল) void কর্মলগলেখা(সার্ভার, uid, hidden ? 'hide' : 'unhide', productId);
+    return সফল;
   } catch {
     return false;
   }

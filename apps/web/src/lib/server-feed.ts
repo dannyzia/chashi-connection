@@ -49,7 +49,8 @@ function রূপান্তর(সারি: পণ্যসারি): স�
 }
 
 /**
- * অদৃশ্য (hidden) ও মেয়াদোত্তীর্ণ বাদ দিয়ে সর্বোচ্চ ২০০টি পণ্য আনে।
+ * অদৃশ্য (hidden), স্বয়ংক্রিয়ভাবে লুকানো (auto_hidden_at — পিআরডি §১২.৪
+ * সীমা, ০০০৬) ও মেয়াদোত্তীর্ণ বাদ দিয়ে সর্বোচ্চ ২০০টি পণ্য আনে।
  * env নেই বা যেকোনো ত্রুটি → { ok:false, items:[] } — কখনো throw নয়।
  */
 export async function সার্ভারফিডআনুন(): Promise<সার্ভারফল> {
@@ -60,6 +61,7 @@ export async function সার্ভারফিডআনুন(): Promise<স�
       .from('products')
       .select('*')
       .eq('hidden', false)
+      .is('auto_hidden_at', null)
       .gte('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(200);
