@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, লগআউট, ব্যবহারকারীব্লক } from '$lib/app-state.svelte';
+  import { app, লগআউট, ব্যবহারকারীআনব্লক } from '$lib/app-state.svelte';
   import { bn } from '$lib/bn';
   import { লেবেলতালিকা } from '$lib/data/labels';
 
@@ -94,7 +94,7 @@
         {#each app.ব্যবহারকারী.ব্লকতালিকা as id}
           <div style="display: flex; justify-content: space-between; padding: 4px 0;">
             <span>{id}</span>
-            <button class="bn-btn-হালকা" style="padding: 4px 8px; font-size: 12px;" onclick={() => ব্যবহারকারীব্লক(id)}>ব্লক মুক্ত করুন</button>
+            <button class="bn-btn-হালকা" style="padding: 4px 8px; font-size: 12px;" onclick={() => ব্যবহারকারীআনব্লক(id)}>{bn.আনব্লক}</button>
           </div>
         {/each}
       {/if}
