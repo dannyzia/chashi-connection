@@ -94,6 +94,32 @@ export async function আনব্লকজমা(blocked_id: string): Promise<�
 }
 
 /**
+ * লিস্টিংয়ের বিক্রেতার সার্ভার-আইডি — ব্লকের সার্ভার-রেকর্ডের ঠিকানা (CHC-T-031)।
+ * CHC-T-026-এর প্রোব-ধাঁচ: কেবল তখনই ফোন করা হয় যখন যা দরকার তা আছে — env, সেশন,
+ * এবং লিস্টিং-আইডি uuid-আকৃতি। তাই ডেমো বীজের ('s1') বা অফলাইনে-তৈরি পোস্টে
+ * শূন্য নেটওয়ার্ক, শূন্য ত্রুটি (পিআরডি §১৬.১)।
+ * সার্ভারে নেই / যেকোনো ত্রুটি / নিজের পোস্ট → null; তখন ব্লক কেবল এই ডিভাইসে থাকে।
+ */
+export async function বিক্রেতাইডআনুন(listingId: string): Promise<string | null> {
+  const সার্ভার = getSupabase();
+  if (!সার্ভার) return null; // env নেই → কোনো অনুরোধ নয়
+  if (!ইউইউআইডি.test(listingId ?? '')) return null; // লোকাল আইডি → অনুরোধ নয়
+  if (!hasAuthClient()) return null;
+  try {
+    const uid = await getSessionUserId();
+    if (!uid) return null;
+    const { data, error } = await সার্ভার.from('products').select('seller_id').eq('id', listingId).maybeSingle();
+    if (error || !data) return null;
+    const বিক্রেতা = data.seller_id;
+    // নিজেকে ব্লক অর্থহীন (blocks_নিজেকে_নয়) — লোকাল তালিকাও নোংরা হয় না।
+    if (typeof বিক্রেতা !== 'string' || !ইউইউআইডি.test(বিক্রেতা) || বিক্রেতা === uid) return null;
+    return বিক্রেতা;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * নিজের ব্লক-সারির blocked_id তালিকা (বুট-মিলনের জন্য)।
  * ব্যর্থ/সেশন-বিহীন → null; তখন মিলনই হয় না, লোকাল তালিকা অটুট।
  */
