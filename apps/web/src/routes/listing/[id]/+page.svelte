@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { app, চ্যাটখুলুন } from '$lib/app-state.svelte';
+  import { app, চ্যাটখুলুন, সার্ভারেচ্যাটখুলুন } from '$lib/app-state.svelte';
   import { bn } from '$lib/bn';
   import { দূরত্ব } from '$lib/logic/feed';
   import { রিপোর্টশ্রেণী } from '$lib/logic/safety';
@@ -21,6 +21,21 @@
       রিপোর্টমোড = false;
       রিপোর্টকারণ = '';
     }
+  }
+
+  // CHC-T-026 — চ্যাটখুলুন: লোকাল থ্রেড আগে ও ঠিকানা বদল আগেই (আজকের আচরণ,
+  // কোনো নেটওয়ার্ক অপেক্ষা নেই), তারপর ব্যাকগ্রাউন্ডে সার্ভার-চ্যাট তৈরির চেষ্টা।
+  // সেশন থাকে ও পোস্টটি সার্ভারে থাকে তবেই চ্যাট সার্ভারে যায়; ব্যর্থ হলে কিছুই
+  // বদলায় না। সার্ভারে তৈরি হলে থ্রেডটি প্রতিপক্ষ-চাবিতে সরে যায়, তাই ব্যবহারকারী
+  // তখনও এই লিস্টিং-থ্রেডে থাকলে ঠিকানা নতুন চাবিতে বদলে দেওয়া হয়।
+  function মেসেজকরুন() {
+    const চলমান = পোস্ট;
+    if (!চলমান) return;
+    চ্যাটখুলুন(চলমান.id, চলমান.বিক্রেতানাম, null);
+    void goto('/chat/' + চলমান.id);
+    void সার্ভারেচ্যাটখুলুন(চলমান.id).then((নতুন) => {
+      if (নতুন && নতুন !== চলমান.id && page.params.id === চলমান.id) void goto('/chat/' + নতুন);
+    });
   }
 </script>
 
@@ -66,7 +81,7 @@
 
     <!-- অ্যাকশন বার -->
     <div style="position: fixed; bottom: 70px; left: 0; right: 0; max-width: 480px; margin: 0 auto; display: flex; gap: 8px; padding: 8px 16px; background: #fff; border-top: 1px solid #eee;">
-      <button class="bn-btn" style="flex: 2;" onclick={() => { চ্যাটখুলুন(পোস্ট.id, পোস্ট.বিক্রেতানাম, null); goto('/chat/' + পোস্ট.id); }}>{bn.বিক্রেতাকেমেসেজ}</button>
+      <button class="bn-btn" style="flex: 2;" onclick={মেসেজকরুন}>{bn.বিক্রেতাকেমেসেজ}</button>
       <button class="bn-btn-হালকা" onclick={() => alert('ফোন নম্বর: ০১৭XXXXXXXXX')} style="flex: 1;">{bn.ফোনকরুন}</button>
       <button class="bn-btn-হালকা" onclick={() => alert('শেয়ার করা হয়েছে')} style="flex: 1;">{bn.শেয়ারকরুন}</button>
       <button class="bn-btn-হালকা" onclick={() => রিপোর্টমোড = true} style="flex: 1;">{bn.রিপোর্টকরুন}</button>
