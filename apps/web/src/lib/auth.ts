@@ -199,8 +199,15 @@ export interface প্রোফাইলফল {
  * public.users-এ প্রথম লগইনের সারি। id অবশ্যই auth uid — RLS users_যোগ
  * (`with check (id = auth.uid())`) অন্য কিছু গ্রহণই করে না।
  *
- * upon conflict (id) → আপডেট: ফোন unique, তাই পুনরায় লগইনে নতুন সারি হয় না,
- * ত্রুটি-ব্যানারও দেখানো হয় না।
+ * আগের সারি থাকলে (আবার লগইন) → update: ফোন unique, তাই পুনরায় লগইনে নতুন
+ * সারি হয় না, ত্রুটি-ব্যানারও দেখানো হয় না।
+ *
+ * ০০০০৫ (CHC-T-028): users-এর অনুমতি এখন কলাম-সীমিত — role/verified/phone/id
+ * ক্লায়েন্ট নিজে লিখতে পারে না। তাই upsert ব্যবহার করা যায় না: তার
+ * `on conflict do update` পাঠানো প্রতিটি কলামে UPDATE অনুমতি চায়, ফলে
+ * verified/phone-সহ পুরো পেলোড গেলে 42501-এ ভেঙে পড়ে (সাইনআপই ব্যর্থ হতো)।
+ * পথ: নতুন সারি → insert (verified বাদ; কলামের ডিফল্ট false), আগের সারি →
+ * কেবল লিখনযোগ্য কলামে update। ফল একই, অনুমতির সীমা অটুট।
  *
  * নেটওয়ার্ক-স্তরের ব্যর্থতা (সার্ভারে পৌঁছায়নি, তাই PostgREST কোড নেই) →
  * পথ:'সারি' — ডাককারী সারিতেযোগ() করবে। সার্ভারের প্রকৃত ত্রুটি (কোড থাকে)
@@ -209,15 +216,22 @@ export interface প্রোফাইলফল {
 export async function প্রোফাইলসংরক্ষণ(সারি: ব্যবহারকারীঢোকানো & { id: string }): Promise<প্রোফাইলফল> {
   const সার্ভার = getSupabase();
   if (!সার্ভার) return { ok: false, পথ: 'ব্যর্থ', error: 'no-client' };
+  const { verified: _যাচাইকৃত, ...প্রবেশ } = সারি;
   try {
-    const { error } = await সার্ভার.from('users').upsert(সারি, { onConflict: 'id' });
-    if (error) {
-      // PostgREST/Postgres ত্রুটিতে সবসময় একটি কোড থাকে; ফাঁকা কোড মানে
-      // অনুরোধটি সার্ভার পর্যন্ত যায়নি (fetch ব্যর্থ) — অর্থাৎ অফলাইন।
-      if (!error.code) return { ok: false, পথ: 'সারি', error: 'offline' };
-      return { ok: false, পথ: 'ব্যর্থ', error: error.code };
+    const { error: ঢোকানো } = await সার্ভার.from('users').insert(প্রবেশ as ব্যবহারকারীঢোকানো);
+    if (!ঢোকানো) return { ok: true, পথ: 'সংরক্ষিত' };
+    // 23505 = unique violation → এই uid-এর সারি আগেই আছে (ফের লগইন) → update।
+    if (ঢোকানো.code === '23505') {
+      const { id, phone: _ফোন, verified: _যাচাই, created_at: _সময়, ...হালনাগাদ } = সারি;
+      const { error: লেখা } = await সার্ভার.from('users').update(হালনাগাদ).eq('id', id);
+      if (!লেখা) return { ok: true, পথ: 'সংরক্ষিত' };
+      if (!লেখা.code) return { ok: false, পথ: 'সারি', error: 'offline' };
+      return { ok: false, পথ: 'ব্যর্থ', error: লেখা.code };
     }
-    return { ok: true, পথ: 'সংরক্ষিত' };
+    // PostgREST/Postgres ত্রুটিতে সবসময় একটি কোড থাকে; ফাঁকা কোড মানে
+    // অনুরোধটি সার্ভার পর্যন্ত যায়নি (fetch ব্যর্থ) — অর্থাৎ অফলাইন।
+    if (!ঢোকানো.code) return { ok: false, পথ: 'সারি', error: 'offline' };
+    return { ok: false, পথ: 'ব্যর্থ', error: ঢোকানো.code };
   } catch {
     return { ok: false, পথ: 'সারি', error: 'offline' };
   }

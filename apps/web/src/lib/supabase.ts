@@ -31,6 +31,9 @@ export type ব্যবহারকারীসারি = {
   whatsapp: string | null;
   women_safety: boolean;
   verified: boolean;
+  // ০০০০৫ (CHC-T-028): অপারেটরের ভূমিকা। কেবল সার্ভার/অপারেটর লেখেন —
+  // কলাম-অনুমতি ক্লায়েন্টের লেখার পথ বন্ধ রাখে; এখানে কেবল পাঠের প্রতিচ্ছবি।
+  role: 'user' | 'admin';
   created_at: string;
 };
 
@@ -96,7 +99,9 @@ export type ব্লকসারি = {
 // সার্ভার-জেনারেটেড কলামগুলো ইনসার্টে ঐচ্ছিক।
 type ঐচ্ছিক<সারি, চাবি extends keyof সারি> = Omit<সারি, চাবি> & Partial<Pick<সারি, চাবি>>;
 
-export type ব্যবহারকারীঢোকানো = ঐচ্ছিক<ব্যবহারকারীসারি, 'id' | 'created_at'>;
+// role/verified সার্ভারের সিদ্ধান্ত (00005): ক্লায়েন্ট পাঠালেও গ্রাহ্য হয় না,
+// তাই ইনসার্টের টাইপে এগুলো ঐচ্ছিক — পাঠানো বাধ্যতামূলক নয়।
+export type ব্যবহারকারীঢোকানো = ঐচ্ছিক<ব্যবহারকারীসারি, 'id' | 'created_at' | 'role' | 'verified'>;
 export type পণ্যঢোকানো = ঐচ্ছিক<পণ্যসারি, 'id' | 'created_at' | 'expires_at'>;
 export type চ্যাটঢোকানো = ঐচ্ছিক<চ্যাটসারি, 'id' | 'created_at'>;
 export type বার্তাঢোকানো = ঐচ্ছিক<বার্তাসারি, 'id' | 'created_at' | 'kind'>;
