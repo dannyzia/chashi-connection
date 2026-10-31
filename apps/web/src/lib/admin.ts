@@ -36,6 +36,31 @@ export type প্রশাসকপণ্য = {
   category: string;
   type: string;
   hidden: boolean;
+  // ০০০৬ (CHC-T-035): রিপোর্ট-সীমায় স্বয়ংক্রিয়ভাবে লুকানোর সময়। মালিকের/
+  // অপারেটরের নিজের লুকানো (hidden) থেকে আলাদা রাখা হয়েছে — তাই UI-তে আলাদা
+  // ব্যাজ, আর প্রকাশ করলে কেবল এই চিহ্নটিই যায়।
+  auto_hidden_at: string | null;
+  created_at: string;
+};
+
+/** ০০০৬-এর কর্ম-লগের কেবল সেই অংশ যা অপারেটর-তালিকা দেখায়। */
+export type প্রশাসককর্ম = {
+  id: string;
+  actor: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  created_at: string;
+};
+
+/** ব্যবহারকারী-তালিকার অংশ (০০০৭) — যাচাই টগলের জন্য যতটুকু দরকার। */
+export type প্রশাসকব্যবহারকারী = {
+  id: string;
+  phone: string;
+  name: string;
+  label: string;
+  role: 'user' | 'admin';
+  verified: boolean;
   created_at: string;
 };
 
@@ -94,22 +119,123 @@ export async function fetchProductsAdmin(): Promise<প্রশাসকপণ�
   const সার্ভার = getSupabase();
   if (!সার্ভার) return [];
   try {
+    // চেইন সরাসরি টাইপড ক্লায়েন্টেই চলে (supabase-js-এর নিজস্ব টাইপিং);
+    // supabase.ts (স্কোপের বাইরে) এখনো ০০০৬-এর auto_hidden_at না জানায়
+    // বলে কেবল ফলের সারিগুলোতেই কাস্ট। রানটাইমে কিছু বদলায় না।
     const { data, error } = await সার্ভার
       .from('products')
-      .select('id,title,category,type,hidden,created_at')
+      .select('id,title,category,type,hidden,auto_hidden_at,created_at')
       .order('created_at', { ascending: false })
       .limit(100);
     if (error || !data) return [];
-    return data.map((প) => ({
-      id: প.id,
-      title: প.title,
-      category: প.category,
-      type: প.type,
-      hidden: প.hidden,
-      created_at: প.created_at
+    return data as unknown as প্রশাসকপণ্য[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * সব ব্যবহারকারী, নতুন আগে (সর্বোচ্চ ১০০) — যাচাই ব্যবস্থাপনার জন্য (০০০৭)।
+ *
+ * সতর্কতা: users_পঠন_প্রমাণিত নীতি authenticated-সবার জন্য (০০০১) — অর্থাৎ
+ * এই তালিকা যেকোনো সাইন-ইন করা ব্যবহারকারী পড়তে পারে, কেবল অ্যাডমিন নয়।
+ * অপারেটর-পাতাটি ভূমিকা যাচাইয়ের পরেই এটা ডাকে, তাই UI-তে ফাঁস হয় না; কিন্তু
+ * নীতিটি প্রশস্ত — তালিকা কেবল-অ্যাডমিন করতে চাইলে ০০০১-এর নীতি বদলাতে হবে
+ * (এই কাজের বাইরে, রিপোর্টে খোলা প্রশ্ন হিসেবে আছে)।
+ */
+export async function fetchAllUsers(): Promise<প্রশাসকব্যবহারকারী[]> {
+  const সার্ভার = getSupabase();
+  if (!সার্ভার) return [];
+  try {
+    const { data, error } = await সার্ভার
+      .from('users')
+      .select('id,phone,name,label,role,verified,created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error || !data) return [];
+    return data.map((ব) => ({
+      id: ব.id,
+      phone: ব.phone,
+      name: ব.name,
+      label: ব.label,
+      role: ব.role,
+      verified: ব.verified,
+      created_at: ব.created_at
     }));
   } catch {
     return [];
+  }
+}
+
+/**
+ * কর্ম-লগ, নতুন আগে (সর্বোচ্চ ১০০) — ০০০৭-এর পঠন-নীতির আওতায় কেবল অ্যাডমিন
+ * সারি পায়। অ-অ্যাডমিনের ফল [] (নীতি কোনো সারি খোলে না) — ত্রুটি নয়।
+ */
+export async function fetchAuditLog(): Promise<প্রশাসককর্ম[]> {
+  const সার্ভার = getSupabase();
+  if (!সার্ভার) return [];
+  try {
+    const { data, error } = await সার্ভার
+      .from('admin_audit')
+      .select('id,actor,action,target_type,target_id,details,created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error || !data) return [];
+    return data as unknown as কর্মপঠনসারি[];
+  } catch {
+    return [];
+  }
+}
+
+type কর্মপঠনসারি = প্রশাসককর্ম & { details: unknown };
+
+/**
+ * যাচাই টগল (পিআরডি §১২.৩) — ০০০৭-এর definer RPC। verified কলাম ক্লায়েন্টের
+ * সরাসরি লেখার বাইরে (০০০৫), তাই একমাত্র পথ এই ফাংশন; ভেতরে কলকারীর ভূমিকা
+ * যাচাই হয়। non-admin → ব্যতিক্রম → {ok:false}। কখনো throw করে না।
+ */
+export async function setUserVerified(
+  userId: string,
+  verified: boolean
+): Promise<{ ok: boolean }> {
+  const সার্ভার = getSupabase();
+  if (!সার্ভার) return { ok: false };
+  try {
+    const { data, error } = await (সার্ভার as unknown as ডাকক্লায়েন্ট).rpc(
+      'set_user_verified',
+      { p_user_id: userId, p_verified: verified }
+    );
+    if (error || !data) return { ok: false };
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+type ডাকক্লায়েন্ট = {
+  rpc: (নাম: string, আর্গ: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
+};
+
+/**
+ * লক্ষ্য-ভিত্তিক রিপোর্ট-সংখ্যা (পিআরডি §১২.৪-এর কিউ-ক্রমের ইনপুট)। reports
+ * পড়া যায় ০০০৫-এর reports_অ্যাডমিন_পঠন নীতিতে (কেবল অ্যাডমিন); অ-অ্যাডমিনের
+ * ফল কেবল নিজের রিপোর্ট, অর্থাৎ গণনা ছোট — তবু ত্রুটি নয়।
+ */
+export async function fetchReportCounts(): Promise<Map<string, number>> {
+  const সার্ভার = getSupabase();
+  const গণনা = new Map<string, number>();
+  if (!সার্ভার) return গণনা;
+  try {
+    const { data, error } = await সার্ভার
+      .from('reports')
+      .select('target_id,category,created_at');
+    if (error || !data) return গণনা;
+    for (const র of data) {
+      গণনা.set(র.target_id, (গণনা.get(র.target_id) ?? 0) + 1);
+    }
+    return গণনা;
+  } catch {
+    return গণনা;
   }
 }
 
