@@ -1,13 +1,86 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { app, লগআউট, ব্যবহারকারীআনব্লক } from '$lib/app-state.svelte';
   import { bn } from '$lib/bn';
   import { লেবেলতালিকা } from '$lib/data/labels';
+  import { getSupabase } from '$lib/supabase';
+  import { getSessionUserId } from '$lib/auth';
 
   let নামসম্পাদনা = $state('');
   let লেবেলসম্পাদনা = $state('');
   let এনআইডিআপলোড = $state(false);
   let হোয়াটসঅ্যাপ = $state('');
   let দেখানো = $state(false);
+
+  // CHC-T-040 — বিপণন সম্মতি এখন /settings-এর মতো একই কলাম থেকেই পড়া/লেখা হয়
+  // (users.marketing_optin)। আগে এটি কেবল যন্ত্রের লোকাল স্টেট ছিল, তাই
+  // প্রোফাইল আর সেটিংস পরস্পরবিরোধী দেখাতে পারত। সার্ভার/সেশন না থাকলে
+  // ডিফল্ট বন্ধ, আর ব্যর্থতায় টগল আগের অবস্থায় ফিরে যায়।
+  type হালকাসার্ভার = {
+    from: (টেবিল: string) => {
+      select: (কলাম: string) => {
+        eq: (কলাম: string, মান: string) => {
+          maybeSingle: () => Promise<{ data: { marketing_optin?: boolean } | null }>;
+        };
+      };
+      update: (মান: Record<string, unknown>) => {
+        eq: (কলাম: string, মান: string) => Promise<{ error: { code?: string } | null }>;
+      };
+    };
+  };
+
+  let বিপণন = $state(false);
+  let uid = $state<string | null>(null);
+  let সেশনআছে = $state(false);
+  let ব্যস্ত = $state(false);
+  let বার্তা = $state('');
+
+  onMount(async () => {
+    uid = await getSessionUserId();
+    সেশনআছে = !!uid;
+    if (!uid) return;
+    const সার্ভার = getSupabase() as unknown as হালকাসার্ভার | null;
+    if (!সার্ভার) return;
+    try {
+      const { data } = await সার্ভার
+        .from('users')
+        .select('marketing_optin')
+        .eq('id', uid)
+        .maybeSingle();
+      বিপণন = data?.marketing_optin === true;
+    } catch {
+      বিপণন = false;
+    }
+  });
+
+  async function বিপণনবদল(নতুনমান: boolean) {
+    const আগের = বিপণন;
+    বিপণন = নতুনমান;
+    বার্তা = '';
+    const সার্ভার = getSupabase() as unknown as হালকাসার্ভার | null;
+    if (!uid || !সার্ভার) {
+      বিপণন = আগের;
+      return;
+    }
+    ব্যস্ত = true;
+    try {
+      const { error } = await সার্ভার
+        .from('users')
+        .update({ marketing_optin: নতুনমান })
+        .eq('id', uid);
+      if (error) {
+        বিপণন = আগের;
+        বার্তা = bn.সংরক্ষণব্যর্থ;
+      } else {
+        বার্তা = bn.সংরক্ষিতহয়েছে;
+      }
+    } catch {
+      বিপণন = আগের;
+      বার্তা = bn.সংরক্ষণব্যর্থ;
+    } finally {
+      ব্যস্ত = false;
+    }
+  }
 
   function নামপরিবর্তন() {
     if (!app.ব্যবহারকারী) return;
@@ -78,12 +151,21 @@
         <span>{bn.চ্যাটবার্তা}</span>
         <span style="color: #4CAF50; font-weight: bold;">{bn.সর্বদাসচালু}</span>
       </div>
-      <div style="display: flex; justify-content: space-between; padding: 8px 0; align-items: center;">
-        <span>{bn.বিপণন}</span>
-        <label style="display: flex; align-items: center; gap: 8px;">
-          <input type="checkbox" bind:checked={app.নোটিফিকেশন.বিপণন} />
-        </label>
+      <div style="display: flex; justify-content: space-between; padding: 8px 0; align-items: flex-start; border-top: 1px solid #eee; margin-top: 8px;">
+        <span>
+          {bn.বিপণন}
+          <span style="display: block; font-size: 12px; color: #777;">{bn.বিপণনবর্ণনা}</span>
+        </span>
+        <input
+          type="checkbox"
+          bind:checked={বিপণন}
+          disabled={!সেশনআছে || ব্যস্ত}
+          onchange={() => বিপণনবদল(বিপণন)}
+        />
       </div>
+      {#if বার্তা}
+        <p style="font-size: 12px; color: #4CAF50;">{বার্তা}</p>
+      {/if}
     </div>
 
     <div class="card">

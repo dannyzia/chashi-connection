@@ -23,10 +23,46 @@ type টোকেনক্লায়েন্ট = {
       মান: Record<string, unknown>,
       অপশন?: Record<string, unknown>
     ) => Promise<{ error: { code?: string } | null }>;
+    delete: () => {
+      eq: (কলাম: string, মান: string) => Promise<{ error: { code?: string } | null }>;
+    };
   };
 };
 
 let নিবন্ধনেরচেষ্টা = false;
+
+// CHC-T-040 — শেষ নিবন্ধিত টোকেন ধরে রাখা হয়, যাতে লগআউটে সারিটি মোছা যায়
+// (RLS self-delete)। মডিউল-স্টেট মূল; localStorage ব্যাকআপ, কারণ অ্যাপ বন্ধ
+// করে আবার খুললে মডিউল-স্টেট শূন্য হয় কিন্তু সারিটি তখনো সার্ভারে থাকে।
+const টোকেনচাবি = 'chashi_পুশ_টোকেন';
+let সর্বশেষটোকেন: string | null = null;
+
+function টোকেনলেখা(টোকেন: string): void {
+  সর্বশেষটোকেন = টোকেন;
+  try {
+    globalThis.localStorage?.setItem(টোকেনচাবি, টোকেন);
+  } catch {
+    // স্টোরেজ বন্ধ/কোটা — মডিউল-স্টেটই যথেষ্ট
+  }
+}
+
+function টোকেনপড়া(): string | null {
+  if (সর্বশেষটোকেন) return সর্বশেষটোকেন;
+  try {
+    return globalThis.localStorage?.getItem(টোকেনচাবি) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function টোকেনভুলেজাও(): void {
+  সর্বশেষটোকেন = null;
+  try {
+    globalThis.localStorage?.removeItem(টোকেনচাবি);
+  } catch {
+    // মুছতে না পারলেও কিছু ভাঙে না
+  }
+}
 
 /**
  * টোকেন সার্ভারে লেখা — RLS নিজেই user_id = auth.uid() যাচাই করে, তাই ক্লায়েন্ট
@@ -35,6 +71,9 @@ let নিবন্ধনেরচেষ্টা = false;
  */
 async function টোকেনসংরক্ষণ(userId: string, টোকেন: string): Promise<void> {
   if (!টোকেন) return;
+  // সার্ভারে লেখার আগেই স্থানীয়ভাবে রাখা — অফলাইনে upsert ব্যর্থ হলেও
+  // লগআউটে মোছার চেষ্টা করা যায়।
+  টোকেনলেখা(টোকেন);
   const সার্ভার = getSupabase() as unknown as টোকেনক্লায়েন্ট | null;
   if (!সার্ভার) return;
   try {
@@ -65,6 +104,28 @@ export function ট্যাপপথ(data: Record<string, unknown> | undefined 
     return '/listing/' + data.listing_id;
   }
   return null;
+}
+
+/**
+ * লগআউটের আগে টোকেন-সারি মোছা (CHC-T-040)।
+ *
+ * RLS নিজেই user_id = auth.uid() যাচাই করে, তাই কেবল নিজের সারি যায়।
+ * কখনো throw করে না — লগআউট পুশ-পরিষ্কারের উপর নির্ভর করে না।
+ * মোছা ব্যর্থ হলে টোকেন রাখা থাকে, পরের লগআউটে আবার চেষ্টা হয়।
+ */
+export async function পুশটোকেনমুছুন(): Promise<void> {
+  const টোকেন = টোকেনপড়া();
+  if (!টোকেন) return;
+  const সার্ভার = getSupabase() as unknown as টোকেনক্লায়েন্ট | null;
+  if (!সার্ভার) {
+    টোকেনভুলেজাও();
+    return;
+  }
+  try {
+    const { error } = await সার্ভার.from('device_tokens').delete().eq('fcm_token', টোকেন);      if (!error) টোকেনভুলেজাও();
+  } catch {
+    // অফলাইন/নেটওয়ার্ক ব্যর্থ — সারিটি পরের বার চেষ্টার জন্য রয়ে যায়
+  }
 }
 
 /**
