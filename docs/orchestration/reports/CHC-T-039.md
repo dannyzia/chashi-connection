@@ -240,6 +240,36 @@ font is intact and byte-identical inside the APK: `assets/public/fonts/NotoSansB
 Headroom remains 2.19 MB (arm64) / 2.55 MB (armeabi) against the 6 MB cap. The near-identical
 per-ABI delta (590 B apart) again indicates a shared payload rather than ABI-specific native code.
 
+## R7 — Land — **PASS**
+
+Branch `task/CHC-T-039` cut from `main @ 3b56589` (= `origin/main` at task start). Two commits,
+then a `--no-ff` merge:
+
+```
+4f5ccdd feat(push): FCM token plumbing, send-fcm dry-run function, pg_net message trigger
+e7b91f4 docs(orchestration): CHC-T-039 push evidence and ledger row
+b58a592 Merge task/CHC-T-039: FCM push notifications (Phase A)
+
+3b56589..b58a592  main -> main
+```
+
+`git ls-remote --heads origin main`:
+
+```
+b58a592f6c495bf58d78a6612157a33424ebab68\trefs/heads/main
+```
+
+The merge carried **12 files / +1040** (`create mode` for `push.ts`, `settings/+page.svelte`,
+`send-fcm/index.ts`, `00009_push_tokens.sql`, the report). **Bright-line scan on added lines only**
+(CHC-D-045/046 interpretation): one hit, and it is the classic false positive — the string `order`
+inside the CSS property **`border-top`** in the settings page. Per-term counts on added lines were
+`cart=0 checkout=0 order=1 payment=0 escrow=0 refund=0 invoice=0 payout=0 fee=0 commission=0`, and
+excluding `border` the scan is empty. Nothing was reworded or suppressed.
+
+**Scope note.** The orchestrator's uncommitted `DECISIONS.md` and the untracked `briefs/*` were not
+touched: his file was preserved and restored byte-identically (`sha256 386e5343…`, `851ec3b3…`
+verified before and after). Only my own T-039 row was committed, on the committed base.
+
 ## OWNER ONE-TIME LIST — the Firebase steps only the owner can do
 
 Zia's Google account, Firebase console, in this order:
