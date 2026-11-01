@@ -258,18 +258,30 @@ The single hit is the CSS property **`border-top`** containing "order" — the s
 false positive as T-039, accepted under the CHC-D-045/046 interpretation. Zero genuine terms;
 nothing reworded or suppressed.
 
-**Merge:** `fc92baf` (`--no-ff` of `task/CHC-T-040`), pushed — `git ls-remote --heads origin main`
-returned `fc92baf99dfcaa4283733ec37238d10a0278d6f9	refs/heads/main`, i.e. remote == local head.
+**Merge:** two `--no-ff` merges landed this task — `fc92baf` (records, code, hygiene, evidence)
+and `5d58346` (the landing addendum below). Both are pushed.
 
 ### R7 landing addendum
 
+**How to verify this landed without chasing a moving head.** Equality against `main` head is a
+trap: this very addendum's merge advances the head past whatever SHA it prints — exactly the
+stale pointer an auditor should never be handed. Ancestry is the stable claim, and it stays true
+for every later head:
+
+```
+$ git merge-base --is-ancestor fc92baf origin/main ; echo "fc92baf ancestor exit=$?"
+fc92baf ancestor exit=0
+$ git merge-base --is-ancestor 5d58346 origin/main ; echo "5d58346 ancestor exit=$?"
+5d58346 ancestor exit=0
+```
+
+At the time of writing (`5d58346` = `main`):
+
 ```
 $ git push origin main
-   c6585c9..fc92baf  main -> main
-$ git rev-parse HEAD
-fc92baf99dfcaa4283733ec37238d10a0278d6f9
+   fc92baf..5d58346  main -> main
 $ git ls-remote --heads origin main
-fc92baf99dfcaa4283733ec37238d10a0278d6f9	refs/heads/main
+5d58346b732c51e07b3fcf7f95b4d4f208cfcddb	refs/heads/main
 ```
 
 Branch history merged by `fc92baf`:
