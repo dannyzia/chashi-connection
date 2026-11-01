@@ -126,5 +126,14 @@ OPEN ISSUES:
 QUESTIONS:
 Should the belt-and-braces feed filter (server-feed.ts auto_hidden_at check) be retired now that RLS
 enforces the same rule, or kept deliberately as a second layer with its own regression test?
+
+LANDING:
+- Branch commits on task/CHC-T-036: 31dd50f (pending orchestrator records) → 029de52 (00008 +
+  comparator) → 9f9fbaf (this report + LEDGER row).
+- Merge --no-ff into main: eb85876 — 7 files changed, 309 insertions(+), 9 deletions(-).
+- Push: 957ff01..eb85876  main -> main.
+- git ls-remote --heads origin main →
+  eb85876a39b3a4f174419f4b66499b07c14ce992	refs/heads/main
+- git status --short apps/web supabase docs → empty before landing and after the evidence commit.
 === END REPORT ===
 ```
