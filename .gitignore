@@ -27,3 +27,6 @@ Thumbs.db
 .tmp/
 .mcp.json
 apps/web/.venv-font/
+
+# Supabase CLI project cache (CHC-T-040)
+supabase/.temp/
