@@ -281,4 +281,13 @@ Proposed default if no answer arrives: **(c)** — T-037 closes with debug deliv
 
 ## LANDING
 
-*(appended after the merge/push — see the commit log lines below)*
+| Item | Value |
+|---|---|
+| Task commit | `6b5f267` — `build(android): first tracked debug APK build with per-ABI byte gate` (3 files, +367) |
+| Branch | `task/CHC-T-037` |
+| Merge | `git merge --no-ff` → **`948be13`** (`948be13c347966161b7cc4fffd92aee674603f92`) |
+| Push | `74674c0..948be13  main -> main` (exit 0) |
+| Remote | `git ls-remote --heads origin main` → `948be13c347966161b7cc4fffd92aee674603f92\trefs/heads/main` |
+| Landing-evidence commit | *this report update* — separate commit on the same branch, merged `--no-ff` as the final main head |
+
+Scoped tree state after landing (`git status --short apps/web supabase docs`): the only entries are the orchestrator's own pending records — `M docs/orchestration/DECISIONS.md` (CHC-D-045), the CHC-T-036 cell edit in `LEDGER.md` (restored byte-identically, sha256 verified), and untracked `docs/orchestration/briefs/CHC-T-037.md`. `apps/web/**` and `supabase/**` are clean; `android/app/build/**` and `assets/public` are gitignored build output, as intended. The pre-existing `.kilo/resources` deletions (CHC-D-018 churn) were neither staged nor restored.
