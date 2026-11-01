@@ -4,6 +4,7 @@
 import type { ফিডআইটেম } from './logic/feed';
 import { getSupabase, type পণ্যঢোকানো, type বার্তাধরণ, type রিপোর্টলক্ষ্য } from './supabase';
 import { hasAuthClient, getSessionUserId, signOutSession } from './auth';
+import { পুশটোকেনমুছুন } from './push';
 import { রিপোর্টজমা, ব্লকজমা, আনব্লকজমা, ব্লকলোকালতালিকাআনুন } from './moderation';
 
 export interface ব্যবহারকারী {
@@ -146,11 +147,22 @@ export function লগইনকরুন(ব্যবহারকারী: ব�
 // CHC-T-018 — লগআউট: স্থানীয় স্টেট আগে, তারপর Supabase সেশন।
 // সেশন মোছা await করা হয় না — অফলাইনে/নেটওয়ার্ক ঝুলে গেলেও লগআউট কখনো
 // আটকায় না বা throw করে না (signOutSession নিজেই কখনো throw করে না)।
+//
+// CHC-T-040 — পুশ টোকেন-সারি সেশন মোছার *আগে* মুছে ফেলা হয়, নাহলে পরের
+// লগইন পর্যন্ত পুরোনো ব্যবহারকারীর নোটিফিকেশন এই ডিভাইসে আসত। UI আগেই
+// সাড়া দেয়; পরিষ্কার করা ব্যাকগ্রাউন্ডে চলে আর ব্যর্থ হলেও লগআউট হয়।
 export function লগআউট() {
   app.লগইন = false;
   app.ব্যবহারকারী = null;
   সংরক্ষণ();
-  void signOutSession();
+  void (async () => {
+    try {
+      await পুশটোকেনমুছুন();
+    } catch {
+      // কখনো নয় — পুশ পরিষ্কার লগআউট আটকাতে পারে না
+    }
+    await signOutSession();
+  })();
 }
 
 // CHC-T-018 — বুট-সিঙ্ক (R2)। কেবল ব্যবহারকারী.id (ঐচ্ছিক) মেলে/মুছে;

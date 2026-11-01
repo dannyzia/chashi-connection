@@ -62,7 +62,9 @@ captures/
 .cxx/
 
 # Google Services (e.g. APIs or Firebase)
-# google-services.json
+# CHC-T-040 — সক্রিয়। Phase-B-তে এই ফাইলটি ড্রপ-ইন হবে: ইগ্নোর না থাকলে
+# একটি `git add -A` সাথেই মালিকের Firebase সিক্রেট কমিট হয়ে যেত।
+google-services.json
 
 # Freeline
 freeline.py
