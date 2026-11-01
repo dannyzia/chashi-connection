@@ -230,3 +230,18 @@ design for §12.4 hiding?
 
 === END REPORT ===
 ```
+
+## Landing
+
+| Item | Value |
+|---|---|
+| Branch | `task/CHC-T-033` |
+| Commit | `f2d9aea docs(orchestration): CHC-T-033 stage-closing E2E evidence` (`Refs: CHC-T-033`), exactly 2 files: report (new, 232 lines) + `LEDGER.md` (CHC-T-033 row, 1 line) |
+| Merge | `a76f4c97b36267b345e8790df4206f7b3b1e53c6` — merge `--no-ff` of `f2d9aea` into `main`, parents `e5e2583` + `f2d9aea`, docs-only |
+| Push | `e5e2583..a76f4c9  main -> main` |
+| Remote check | `a76f4c97b36267b345e8790df4206f7b3b1e53c6\trefs/heads/main` |
+
+Merge hygiene: zero `apps/web/**`, zero `supabase/**` paths — the diff is the report plus one ledger row.
+The orchestrator's uncommitted `DECISIONS.md` / `briefs/CHC-T-033.md` / `LEDGER.md` (T-035 row) edits were
+left unchanged and uncommitted (DEVIATION 7); the ledger file was restored byte-identically after the merge
+(sha256 match against the pre-merge backup).
