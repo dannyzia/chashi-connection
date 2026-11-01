@@ -258,7 +258,39 @@ The single hit is the CSS property **`border-top`** containing "order" — the s
 false positive as T-039, accepted under the CHC-D-045/046 interpretation. Zero genuine terms;
 nothing reworded or suppressed.
 
-Merge: see the R7 landing addendum at the end of this file.
+**Merge:** `fc92baf` (`--no-ff` of `task/CHC-T-040`), pushed — `git ls-remote --heads origin main`
+returned `fc92baf99dfcaa4283733ec37238d10a0278d6f9	refs/heads/main`, i.e. remote == local head.
+
+### R7 landing addendum
+
+```
+$ git push origin main
+   c6585c9..fc92baf  main -> main
+$ git rev-parse HEAD
+fc92baf99dfcaa4283733ec37238d10a0278d6f9
+$ git ls-remote --heads origin main
+fc92baf99dfcaa4283733ec37238d10a0278d6f9	refs/heads/main
+```
+
+Branch history merged by `fc92baf`:
+
+```
+50a80aa docs(orchestration): record CHC-T-040 evidence and close the row
+c3c9d44 docs(agents): record the ratified push stack in the locked stack list
+d296e33 chore(repo): ignore Firebase config and supabase CLI cache, scope the APK gate
+fc6c88f feat(push): drop the device token on logout and unify marketing consent
+7acac10 docs(orchestration): land orchestrator records for T-036..T-040
+```
+
+Post-landing working-tree state (`git status --short apps/web supabase docs`) is **empty** apart
+from the orchestrator's own in-flight `LEDGER.md` line and `briefs/CHC-T-041.md`, which are
+preserved uncommitted and byte-identical to how they were found
+(`sha256 f39c28c9…` before and after).
+
+Evidence-commit scan note: the `50a80aa` added lines do match the bright-line terms — because that
+report *quotes the per-term count table it is presenting*. That is meta-documentation of the scan,
+the same accepted case as CHC-T-037. The **code** commits' added lines carry only the CSS
+`border-top` substring; the gate result that matters is unchanged.
 
 ---
 
