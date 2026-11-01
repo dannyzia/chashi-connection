@@ -288,8 +288,30 @@ WOFF2 (T-037's R5 evidence carries the full font/asset listing).
 
 ## R7 — Land — **PASS**
 
-Branch `task/CHC-T-038`; commits `type(scope): subject` + `Refs: CHC-T-038`; merged `--no-ff` to
-`main`; pushed. See the landing block appended below (post-push evidence).
+Branch `task/CHC-T-038` cut from `main @ fd675b4` (= `origin/main` at task start).
+
+```
+9ae24ea docs(orchestration): CHC-T-038 signed release APK evidence — cap-proven, ABB blocked
+cb94577 Merge task/CHC-T-038: signed release APK evidence
+        parents: fd675b409110d2493ea8bb8ff02e9245a4bb857e 9ae24ead931f25a44eb03b3dd32c065bbb28583d
+fd675b4..cb94577  main -> main
+```
+
+`git ls-remote --heads origin main`:
+
+```
+cb94577ece4f440bedc06565e38e5045f1a33890	refs/heads/main
+```
+
+The merge carried exactly two files (+361): the new report (360) and one added ledger row (1). No
+`apps/web/**`, `supabase/**`, or `android/**` file was touched by this task, so nothing on the app or
+schema side could regress — and the shipped artifact is the build output, not a repo file.
+
+**Landing-scope note.** The working tree also holds the orchestrator's uncommitted
+`docs/orchestration/DECISIONS.md` hunk plus their in-flight rewrite of the T-036/T-037 ledger rows and
+the untracked `briefs/CHC-T-038.md`. Those are not this task's scope, so only the report and the
+CHC-T-038 row were committed; the orchestrator's ledger file was restored byte-for-byte afterwards
+(see OPEN ISSUES #5).
 
 ---
 
@@ -351,6 +373,13 @@ ABB: **not produced** (R5 blocked).
    default before it can be a CI gate. Not modified here.
 4. **Version identity is static.** `versionCode 1` / `versionName "1.0"` are hard-coded; consecutive
    signed releases would collide on `versionCode` at any store hand-off.
+5. **The orchestrator's pending ledger rewrite was left untouched.** The uncommitted
+   `docs/orchestration/LEDGER.md` in the working tree replaces the T-036/T-037 rows with the
+   orchestrator's verified wording and adds a CHC-T-038 row that is still stamped `QUEUED` — landing it
+   as-is would reset this task's status and drop the evidence now recorded above. Only the CHC-T-038
+   row was committed (on `main`'s own base), then the orchestrator's file was restored unchanged. Before
+   that hunk lands, its T-038 row should be dropped in favour of the committed one, or `main` will carry
+   two conflicting CHC-T-038 entries.
 
 ## QUESTIONS
 
