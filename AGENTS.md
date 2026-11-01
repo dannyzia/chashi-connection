@@ -69,8 +69,9 @@ Every agent session (orchestrator, builder, planner, auditor, tester, or any cod
 ### 🔐 **LOCKED TECH STACK (PRD §13 — BINDING ON EVERY AGENT)**
 **Everyone working on this project follows and maintains exactly this stack. Adding, swapping, or layering any framework, state/UI/date/utility library, or npm dependency is an OWNER DECISION (CHC-D-008) — never an implementer choice.**
 - **Frontend:** SvelteKit (Svelte 5 Runes) + `@sveltejs/adapter-static` (SPA, `ssr=false`) + TypeScript + Vite.
-- **Native:** Capacitor (Android-first) + `@capacitor/camera` + `@capacitor-community/sqlite`.
-- **Backend (when built):** Supabase only — Postgres, Auth (phone OTP), Storage, Realtime, Edge Functions. **No Firebase except FCM** (push only).
+- **Native:** Capacitor (Android-first) + `@capacitor/camera` + `@capacitor-community/sqlite` + `@capacitor/push-notifications`.
+- **Backend (when built):** Supabase only — Postgres, Auth (phone OTP), Storage, Realtime, Edge Functions. **No Firebase except FCM** (push only) — Supabase Edge Functions + FCM HTTP v1 (push).
+<!-- CHC-D-049: `@capacitor/push-notifications` + the `send-fcm` Edge Function (FCM HTTP v1) are ratified stack; T-040 recorded them here. -->
 - **AI (when built):** Google ML Kit (on-device) + Gemini 1.5 Flash (cloud) only.
 - **Ops (when built):** Cloudflare CDN, PostHog (self-hosted), Sentry, GitHub Actions.
 - **Styling:** plain CSS (`app.css` + component `<style>`); no CSS frameworks, no icon fonts (byte budget).
