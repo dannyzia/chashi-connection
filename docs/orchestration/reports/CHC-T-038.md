@@ -313,6 +313,37 @@ the untracked `briefs/CHC-T-038.md`. Those are not this task's scope, so only th
 CHC-T-038 row were committed; the orchestrator's ledger file was restored byte-for-byte afterwards
 (see OPEN ISSUES #5).
 
+**Final landing head — the evidence commit was itself merged.** The landing-evidence edit above is a
+commit on `main`, so the head advanced one further merge after `cb94577`. The report's R7 readings
+above are true as of the first merge; the chain below is the closing state:
+
+```
+9ae24ea docs(orchestration): CHC-T-038 signed release APK evidence — cap-proven, ABB blocked
+cb94577 Merge task/CHC-T-038: signed release APK evidence
+00119e1 docs(orchestration): CHC-T-038 landing evidence (merge cb94577)
+08a2c6d Merge task/CHC-T-038: landing evidence        ← FINAL HEAD
+```
+
+`git ls-remote --heads origin main` at closure:
+
+```
+08a2c6dcd2e537067f97d45db106eb7c0adddd5f	refs/heads/main
+```
+
+**Orchestrator verification and closure.** He confirmed all ten flags YES against `08a2c6d`, including
+the release artifacts on disk byte-exact, the release-scoped gate rerun (exit 0), apksigner v2 on both
+ABIs with the matching digest prefix, the Bengali font byte-exact inside the release APK, the DEX
+collapse, `assets/public` = 771,752 B inside the APK, the SDK metadata, and the ABB's absence as
+claimed. He also found that his own pending working-tree T-038 ledger cell is a same-row refinement
+rather than a duplicate, so the duplicate-row hazard flagged in OPEN ISSUES #5 does not exist.
+
+**The QUESTION below is ANSWERED — `CHC-D-048`: the stage closes APK-only; the ABB defers to the
+store-upload stage.** Reasoning recorded: an `.aab` is a distribution container, not the installed
+artifact, so its own bytes never prove the installed cap; the one-line `splits.abi.enable` guard rides
+the upload stage's brief, which is owner-gated forever per CHC-D-047. R5 staying BLOCKED is therefore
+the ruled outcome, not a gap. His gate-discipline note is also adopted: future gate runs must scope
+`--root` to the variant under judgment, because the default root mixes debug and release.
+
 ---
 
 ## WEB ASSETS
@@ -383,7 +414,7 @@ ABB: **not produced** (R5 blocked).
 
 ## QUESTIONS
 
-**One:** authorise the `splits.abi.enable` per-task guard (exact diff in R5) so `bundleRelease` can
+**One (ANSWERED — `CHC-D-048` closes the stage APK-only; the ABB moves to the store-upload stage):** authorise the `splits.abi.enable` per-task guard (exact diff in R5) so `bundleRelease` can
 produce the ABB this stage, or rule that the ABB belongs to the (owner-gated) store-upload stage and
 close this stage APK-only? Proposed default if no answer: **close APK-only** — the cap is proven on
 the split APKs, and the bundle is a distribution-format concern for the upload stage.
