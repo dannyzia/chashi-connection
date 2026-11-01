@@ -240,11 +240,42 @@ with its metadata intact, so the offline path is the real SQLite plugin in this 
 
 ---
 
-## R6 — Land — see git evidence below
+## R6 — Land — **PASS**
 
-Branch `task/CHC-T-043`; records commit first (the established pattern), then the four app
-files with `fix(android): keep Capacitor plugin annotations through R8; camera capture
-feedback + Refs: CHC-T-043`; `--no-ff` merge into `main`; pushed.
+Branch `task/CHC-T-043` off `32fb687` (= origin/main at start); records commit first (the
+T-036 pattern), then the four app files; `--no-ff` merge into `main`; pushed.
+
+```
+0f51859  docs(orchestration): record CHC-T-043 evidence — keeps measured at 616 B, crash re-proven
+6050aa9  fix(android): keep Capacitor plugin annotations through R8; camera capture feedback
+b96ee84  Merge task/CHC-T-043: land the R8 annotation keeps that fix the camera crash and restore SQLite
+
+=== MERGE SHA ===
+b96ee8443339b59792df06f858669d8941d51eb7
+
+$ git push origin main
+   32fb687..b96ee84  main -> main
+
+$ git ls-remote --heads origin main
+b96ee8443339b59792df06f858669d8941d51eb7	refs/heads/main
+
+$ git status --short apps/web supabase docs
+ M docs/orchestration/DECISIONS.md
+=== END STATUS ===
+```
+
+`git diff HEAD` over the four app files is empty, so the working tree the APK was built from
+is byte-identical to what is committed. `node scripts/validate.mjs` re-run on the merged
+`main`: **ALL CHECKS PASSED**, exit 0.
+
+The single remaining dirty path is `docs/orchestration/DECISIONS.md` — the orchestrator's own
+rulings, deliberately preserved rather than committed by this task. Everything else in the
+dirty tree belongs to other agents and predates this task (`.kilo/`, `.clinerules/`,
+`CLAUDE.md`, `.agent-tracker.json`, `.cloud-attachments/`) and was not staged.
+
+Two generated Gradle files (`capacitor.build.gradle`, `capacitor.settings.gradle`) were
+touched by `cap sync` with **EOL-only** differences; verified with
+`git diff --ignore-cr-at-eol` (empty) and restored, so no churn entered the commit.
 
 ---
 
