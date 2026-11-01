@@ -37,11 +37,19 @@
       if (ছবি?.dataUrl) {
         ছবিরডেটা = await থাম্বনেইলবানাও(ছবি.dataUrl);
         ছবিআছে = true;
+        ত্রুটি = '';
         console.log('[Camera] ছবি তোলা সফল');
       }
     } catch (e) {
+      // নীরব ব্যর্থতা নয় — ব্যবহারকারী অন্তত জানবেন ছবি যোগ হয়নি (২০২৬-১১-০১)
       console.warn('[Camera] ছবি তুলতে ব্যর্থ:', e);
+      ত্রুটি = bn.ত্রুটি_ছবি;
     }
+  }
+
+  function ছবিমুছুন() {
+    ছবিরডেটা = '';
+    ছবিআছে = false;
   }
 
   // থাম্বনেইল: ২৫৬px JPEG — localStorage কোটা রক্ষা করে (PRD §16.1 অফলাইন ক্যাশ)
@@ -96,7 +104,7 @@
   }
 </script>
 
-<div style="max-width: 480px; margin: 0 auto; padding: 16px;">
+<div style="max-width: 480px; margin: 0 auto; padding: 16px; padding-bottom: calc(88px + env(safe-area-inset-bottom));">
   <h2 style="text-align: center;">{প্রকার === 'বিক্রয়' ? bn.কিছুবিক্রি : bn.জিনিসখুঁজছি}</h2>
 
   <div style="display: flex; gap: 8px; margin-bottom: 16px;">
@@ -107,13 +115,27 @@
   <!-- ছবি -->
   <div style="margin-bottom: 16px;">
     <label class="bn-লেবেল">{bn.ছবিতুলুন}</label>
-    <button class="bn-btn-হালকা" onclick={স্ক্যানকরুন} style="margin-top: 8px;">
-      📷 {bn.ছবিতুলুন}
-    </button>
-    <button class="bn-btn-হালকা" onclick={() => ছবিআছে = !ছবিআছে} style="margin-top: 8px; margin-left: 8px;">
-      {bn.ছবিছাড়া}
-    </button>
-    {#if !ছবিআছে}
+    {#if ছবিরডেটা}
+      <!-- ছবি তোলার পর প্রিভিউ + নিশ্চিতকরণ — ব্যবহারকারী নিজেই দেখতে পান ছবিটা যোগ হয়েছে -->
+      <div style="display: flex; gap: 12px; align-items: flex-start; margin-top: 8px;">
+        <img
+          src={ছবিরডেটা}
+          alt={bn.ছবিযোগহয়েছে}
+          style="width: 84px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid #E0E0E0; flex: 0 0 auto;"
+        />
+        <div style="flex: 1; min-width: 0;">
+          <p style="font-size: 13px; color: #2E7D32; font-weight: bold; margin: 0 0 8px;">{bn.ছবিযোগহয়েছে}</p>
+          <button class="bn-btn-হালকা" onclick={স্ক্যানকরুন} style="width: 100%;">📷 {bn.আবারতুলুন}</button>
+          <button class="bn-btn-হালকা" onclick={ছবিমুছুন} style="width: 100%; margin-top: 6px;">{bn.ছবিমুছুন}</button>
+        </div>
+      </div>
+    {:else}
+      <button class="bn-btn-হালকা" onclick={স্ক্যানকরুন} style="margin-top: 8px;">
+        📷 {bn.ছবিতুলুন}
+      </button>
+      <button class="bn-btn-হালকা" onclick={() => ছবিআছে = false} style="margin-top: 8px; margin-left: 8px;">
+        {bn.ছবিছাড়া}
+      </button>
       <p style="font-size: 12px; color: #C62828; margin-top: 4px;">{bn.নোফটো} — {bn.ফাঁকাফিড}</p>
     {/if}
   </div>
